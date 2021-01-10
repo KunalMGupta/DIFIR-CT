@@ -3,12 +3,27 @@ class config:
         '''
         Define the Environment parameters of CT setup
         '''
+     
+        # Perform some sanity checks
+        
+        assert isinstance(INTENSITIES, np.array), 'INTENSITIES must be a Nx1 numpy array'
+        assert len(INTENSITIES.shape) == 2, 'INTENSITIES must be a Nx1 numpy array'
+        assert TYPE in [0,1,2], 'TYPE must be either 0, 1 or 2'
+        assert isinstance(NUM_HEART_BEATS, float) and NUM_HEART_BEATS > 0 and NUM_HEART_BEATS < 10, 'NUM_HEART_BEATS must be a positive float not more than 10'
+        assert isinstance(NUM_SDFs, int) and NUM_SDFs > 0 and NUM_SDFs < 5, 'NUM_SDFs should be positive integer not more than 5' 
+        
+        
         self.IMAGE_RESOLUTION = 64              # Resolution of the CT image
         self.GANTRY_VIEWS_PER_ROTATION = 720     # Number of views that the gantry clicks in a single 360 degree rotation
         self.HEART_BEAT_PERIOD = 1000            # Time (ms) it takes the heart to beat once
         self.GANTRY_ROTATION_PERIOD = 275        # Time (ms) it takes for the gantry to complete a single 360 degree rotation
         self.NUM_HEART_BEATS = NUM_HEART_BEATS   # Number of heart beats during the time HEART_BEAT_PERIOD
         self.INTENSITIES = INTENSITIES
+        
+        '''
+        NOTE: In the current setup, all of motion happens within the period HEART_BEAT_PERIOD. In case there are N hearbeats, then the time period of each heart beat is taken as HEART_BEAT_PERIOD/N. 
+        '''
+        
         '''
         Parameters for defining experimental setup
         '''
@@ -33,6 +48,6 @@ class config:
         '''
         NeuralCT Hyper parameters
         '''
-        self.SDF_SCALING = 0.5*self.IMAGE_RESOLUTION  # Factor to scale NeuralCT's output to match G.T. SDF range of values
+        self.SDF_SCALING = self.IMAGE_RESOLUTION/1.414  # Factor to scale NeuralCT's output to match G.T. SDF range of values
         self.BATCH_SIZE=20                       # Number of projections used in a single training iterations
         self.NUM_SDFS = NUM_SDFS
