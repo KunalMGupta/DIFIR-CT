@@ -1,3 +1,5 @@
+import numpy as np
+
 class config: 
     def __init__(self, INTENSITIES, TYPE=0, NUM_HEART_BEATS=2, NUM_SDFS=2):
         '''
@@ -6,11 +8,11 @@ class config:
      
         # Perform some sanity checks
         
-        assert isinstance(INTENSITIES, np.array), 'INTENSITIES must be a Nx1 numpy array'
+        assert isinstance(INTENSITIES, np.ndarray), 'INTENSITIES must be a Nx1 numpy array'
         assert len(INTENSITIES.shape) == 2, 'INTENSITIES must be a Nx1 numpy array'
-        assert TYPE in [0,1,2], 'TYPE must be either 0, 1 or 2'
+        assert isinstance(TYPE, int) and TYPE in [0,1,2], 'TYPE must be either 0, 1 or 2'
         assert isinstance(NUM_HEART_BEATS, float) and NUM_HEART_BEATS > 0 and NUM_HEART_BEATS < 10, 'NUM_HEART_BEATS must be a positive float not more than 10'
-        assert isinstance(NUM_SDFs, int) and NUM_SDFs > 0 and NUM_SDFs < 5, 'NUM_SDFs should be positive integer not more than 5' 
+        assert isinstance(NUM_SDFS, int) and NUM_SDFS > 0 and NUM_SDFS < 5, 'NUM_SDFs should be positive integer not more than 5' 
         
         
         self.IMAGE_RESOLUTION = 64              # Resolution of the CT image
