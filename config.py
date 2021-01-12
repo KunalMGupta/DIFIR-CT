@@ -11,7 +11,7 @@ class Config:
         assert isinstance(INTENSITIES, np.ndarray), 'INTENSITIES must be a Nx1 numpy array'
         assert len(INTENSITIES.shape) == 2, 'INTENSITIES must be a Nx1 numpy array'
         assert isinstance(TYPE, int) and TYPE in [0,1,2], 'TYPE must be either 0, 1 or 2'
-        assert isinstance(NUM_HEART_BEATS, float) and NUM_HEART_BEATS > 0 and NUM_HEART_BEATS < 10, 'NUM_HEART_BEATS must be a positive float not more than 10'
+        assert isinstance(NUM_HEART_BEATS, float) and NUM_HEART_BEATS >= 1 and NUM_HEART_BEATS < 10, 'NUM_HEART_BEATS must be a float between 1 and 10'
         assert isinstance(NUM_SDFS, int) and NUM_SDFS > 0 and NUM_SDFS < 5, 'NUM_SDFs should be positive integer not more than 5' 
         
         

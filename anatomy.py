@@ -158,6 +158,7 @@ class Organ:
         '''
         assert isinstance(config, Config), 'config must be an instance of class Config'
         assert isinstance(center, list) and len(center)==2 and all([isinstance(c,float) for c in center]) ,'center must be a list of 2 float coordinates'
+        assert min(center) >= 0 and max(center) <= 1, 'center coordinates must be between 0 and 1'
         assert isinstance(a, float) and isinstance(b, float) and a>0 and b >0, 'radii a and b should be positive float'
         assert isinstance(size, str) and isinstance(location, str), 'size and location are string parameters'
         
@@ -170,9 +171,11 @@ class Organ:
          
     def ellipse(self, pt, a, b):
         assert isinstance(pt, np.ndarray) and len(pt.shape) == 2, 'pt must be a 2D numpy array'
+        assert not np.isnan(pt).any(), 'NaN value present in array pt'
         assert isinstance(a, float) and isinstance(b, float) and a>0 and b >0, 'radii a and b should be positive float'
         
-        result = (((pt[:,0]-self.center[0])/a)**2 + ((pt[:,1]-self.center[1])/b)**2 - 1 < 0)*1
+        dist = ((pt[:,0]-self.center[0])/a)**2 + ((pt[:,1]-self.center[1])/b)**2 - 1
+        result = ((dist < 0)*1).reshape(-1,1)
         
         assert (((result == 0) + (result == 1)) == True).all(), 'Not all values are either 0 or 1'
         assert len(result.shape) == 2, 'result has incorrect shape of {}'.format(result.shape)
@@ -182,15 +185,22 @@ class Organ:
     def get_phase(self, t):
         '''
         Calculates the correct phase of the organ motion given time of gantry
-        (-TOTAL_CLICKS, +TOTAL_CLICKS)  --> (0,1)
+        (-THETA_MAX, +THETA_MAX)  --> (0,1)
         
         '''
-        assert t >= -self.config.TOTAL_CLICKS and t <= self.config.TOTAL_CLICKS, 't = {} is out of range'.format(t)
+        assert t >= -self.config.THETA_MAX and t <= self.config.THETA_MAX, 't = {} is out of range'.format(t)
+        assert isinstance(t, int), 't = {} must be an integer here'.format(t)
         
         t = self.config.GANTRY2HEART_SCALE*t
+
+        if t>1 or t<-1:
+            t-=int(t)
         
-        if t <= 0:
+        if t < 0:
             t +=1
+            
+        if t > 0.999:
+            t = 0.0
             
         assert t >=0 and t <= 1, 'Resultant t = {} is out of range (0,1)'.format(t)
         
@@ -204,15 +214,14 @@ class Organ:
         t: an integer 
         '''
         assert isinstance(pt, np.ndarray) and len(pt.shape) == 2, 'pt must be a 2D numpy array'
-        assert isinstance(t, int) and abs(t) <= self.config.TOTAL_CLICKS, 'Time is out of range: {}'.format(t)
+        assert isinstance(t, int) and abs(t) <= self.config.THETA_MAX, 'Time is out of range: {}'.format(t)
         
         t = self.get_phase(t)
-        delta_cx, delta_cy = self.func_c(t)
-        
+        delta_cx, delta_cy = self.func_c(1.0, t)
         pt_new = pt.copy()
         pt_new[:,0] -= delta_cx
         pt_new[:,1] -= delta_cy
-        
+                
         return self.ellipse(pt_new, self.func_r(self.a, t), self.func_r(self.b, t))
             
           
@@ -220,13 +229,15 @@ class Body:
     '''
     Body class is collection of several Organ objects
     '''
-    def __init__(self, organs):
+    def __init__(self, config, organs):
         
+        assert isinstance(config, Config), 'config must be an instance of class Config'
         assert isinstance(organs, list), 'Provide a valid list of organs'
         assert all([isinstance(organ, Organ) for organ in organs]), 'List elements must be of type organ'
+        assert len(organs) == config.INTENSITIES.shape[1], 'Number of organs should match number of intensities'
         
         self.organs = organs
-        
+        self.config = config
        
     def is_inside(self, pt, t):
         '''
@@ -234,12 +245,12 @@ class Body:
         '''
         
         assert isinstance(pt, np.ndarray) and len(pt.shape) == 2, 'Points must be 2D numpy array'
-        assert isinstance(t, float), 't must be a single float value'
+        assert isinstance(t, int) and abs(t) <= self.config.THETA_MAX, 'Time is out of range: {}'.format(t)
         
         inside = np.zeros((pt.shape[0], len(self.organs)))
         
         for idx, orgon in enumerate(self.organs):
-             inside[:,idx] = orgon.is_inside(pt,t)
+             inside[:,idx] = orgon.is_inside(pt,t).reshape(-1)
                 
                 
         assert (np.sum(inside, axis=1) < 2).all(), 'Organs are intersecting !! '
