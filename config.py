@@ -1,6 +1,6 @@
 import numpy as np
 
-class config: 
+class Config: 
     def __init__(self, INTENSITIES, TYPE=0, NUM_HEART_BEATS=2, NUM_SDFS=2):
         '''
         Define the Environment parameters of CT setup
@@ -33,19 +33,19 @@ class config:
         # To run gantry for a single 360 degree rotation
             self.TOTAL_CLICKS = self.GANTRY_VIEWS_PER_ROTATION
             self.THETA_MAX = 360
-            self.GANTRY2HEART_SCALE = (1/self.THETA_MAX)*(self.GANTRY_ROTATION_PERIOD/self.HEART_BEAT_PERIOD)
+            self.GANTRY2HEART_SCALE = (self.NUM_HEART_BEATS/self.THETA_MAX)*(self.GANTRY_ROTATION_PERIOD/self.HEART_BEAT_PERIOD)
         
         elif TYPE==1:
         # Otherwise, to run gantry for a single heart beat
             self.TOTAL_CLICKS = int(self.GANTRY_VIEWS_PER_ROTATION * (self.HEART_BEAT_PERIOD/self.GANTRY_ROTATION_PERIOD)/self.NUM_HEART_BEATS)
             self.THETA_MAX = int(360 * (self.HEART_BEAT_PERIOD/self.GANTRY_ROTATION_PERIOD)/self.NUM_HEART_BEATS)
-            self.GANTRY2HEART_SCALE = 1/(self.THETA_MAX*self.NUM_HEART_BEATS)
+            self.GANTRY2HEART_SCALE = 1/(self.THETA_MAX)
         
         elif TYPE==2:
         # Lastly, if you wish to run gantry to capture N heart beats then
             self.TOTAL_CLICKS = int(self.GANTRY_VIEWS_PER_ROTATION * (self.HEART_BEAT_PERIOD/self.GANTRY_ROTATION_PERIOD))
             self.THETA_MAX = int(360 * (self.HEART_BEAT_PERIOD/self.GANTRY_ROTATION_PERIOD))
-            self.GANTRY2HEART_SCALE = 1/(self.THETA_MAX)
+            self.GANTRY2HEART_SCALE = self.NUM_HEART_BEATS/(self.THETA_MAX)
         
         '''
         NeuralCT Hyper parameters
