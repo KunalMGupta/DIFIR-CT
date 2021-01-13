@@ -188,7 +188,7 @@ class Organ:
         (-THETA_MAX, +THETA_MAX)  --> (0,1)
         
         '''
-        assert isinstance(t, int), 't = {} must be an integer here'.format(t)
+        assert isinstance(t, float), 't = {} must be an integer here'.format(t)
         assert t >= -self.config.THETA_MAX and t <= self.config.THETA_MAX, 't = {} is out of range'.format(t)
         
         t = self.config.GANTRY2HEART_SCALE*t
@@ -214,7 +214,7 @@ class Organ:
         t: an integer 
         '''
         assert isinstance(pt, np.ndarray) and len(pt.shape) == 2, 'pt must be a 2D numpy array'
-        assert isinstance(t, int) and abs(t) <= self.config.THETA_MAX, 'Time is out of range: {}'.format(t)
+        assert isinstance(t, float) and abs(t) <= self.config.THETA_MAX, 'Time is out of range: {}'.format(t)
         
         t = self.get_phase(t)
         delta_cx, delta_cy = self.func_c(1.0, t)
@@ -245,7 +245,7 @@ class Body:
         '''
         
         assert isinstance(pt, np.ndarray) and len(pt.shape) == 2, 'Points must be 2D numpy array'
-        assert isinstance(t, int) and abs(t) <= self.config.THETA_MAX, 'Time is out of range: {}'.format(t)
+        assert isinstance(t, float) and abs(t) <= self.config.THETA_MAX, 'Time is out of range: {}'.format(t)
         
         inside = np.zeros((pt.shape[0], len(self.organs)))
         

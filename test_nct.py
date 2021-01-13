@@ -3,7 +3,7 @@ import numpy as np
 
 from config import Config
 from anatomy import Motion, Organ, Body
-from renderer import SDFGt
+from renderer import *
 
 import os
         
@@ -11,13 +11,19 @@ ALMOST_EQUAL_TOL = 2
     
 class TestNCT(unittest.TestCase):
     
+    @classmethod
+    def setUpClass(cls):
+        ''
+#         if os.path.exists('test_outputs'):
+#             os.system('cd test_outputs && rm *')
+            
+#         else:
+#             os.system('mkdir test_outputs')
+            
     def setUp(self):
         self.config = Config(np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
-        self.body = Body(self.config, [Organ(self.config,[0.5,0.5],0.2,0.2,'simple_sin','const2'),
+        self.body = Body(self.config, [Organ(self.config,[0.6,0.6],0.2,0.2,'simple_sin','const2'),
                                        Organ(self.config,[0.2,0.2],0.2,0.2,'simple_sin','const2')])
-        
-        if os.path.exists('test_outputs'):
-            os.systems('cd test_outputs && rm *')
         
     def test_config_inputs(self):
 
@@ -141,26 +147,26 @@ class TestNCT(unittest.TestCase):
         config = Config(np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
         organ = Organ(config, [0.0,0.0],1.0,1.0,'const','const2')
         
-        self.assertAlmostEqual(organ.get_phase(0),0,ALMOST_EQUAL_TOL)
-        self.assertAlmostEqual(organ.get_phase(config.THETA_MAX),config.NUM_HEART_BEATS*
+        self.assertAlmostEqual(organ.get_phase(0.0),0,ALMOST_EQUAL_TOL)
+        self.assertAlmostEqual(organ.get_phase(1.0*config.THETA_MAX),config.NUM_HEART_BEATS*
                          config.GANTRY_ROTATION_PERIOD/config.HEART_BEAT_PERIOD,ALMOST_EQUAL_TOL)
-        self.assertAlmostEqual(organ.get_phase(-config.THETA_MAX),1-config.NUM_HEART_BEATS*
+        self.assertAlmostEqual(organ.get_phase(-1.0*config.THETA_MAX),1-config.NUM_HEART_BEATS*
                          config.GANTRY_ROTATION_PERIOD/config.HEART_BEAT_PERIOD,ALMOST_EQUAL_TOL)
         
         # Testing for Type 1
         config = Config(np.array([[0.3,0.6]]), TYPE=1, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
         organ = Organ(config, [0.0,0.0],1.0,1.0,'const','const2')
-        self.assertAlmostEqual(organ.get_phase(0),0,ALMOST_EQUAL_TOL)
-        self.assertAlmostEqual(organ.get_phase(config.THETA_MAX),0,ALMOST_EQUAL_TOL)
-        self.assertAlmostEqual(organ.get_phase(-config.THETA_MAX),0,ALMOST_EQUAL_TOL)
+        self.assertAlmostEqual(organ.get_phase(0.0),0,ALMOST_EQUAL_TOL)
+        self.assertAlmostEqual(organ.get_phase(1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
+        self.assertAlmostEqual(organ.get_phase(-1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
         
         # Testing for Type 2
         for num in [1.0,2.0,3.0]:
             config = Config(np.array([[0.3,0.6]]), TYPE=2, NUM_HEART_BEATS=num, NUM_SDFS=2)
             organ = Organ(config, [0.0,0.0],1.0,1.0,'const','const2')
-            self.assertAlmostEqual(organ.get_phase(0),0,ALMOST_EQUAL_TOL)
-            self.assertAlmostEqual(organ.get_phase(config.THETA_MAX),0,ALMOST_EQUAL_TOL)
-            self.assertAlmostEqual(organ.get_phase(int(config.THETA_MAX/num)),0,ALMOST_EQUAL_TOL)
+            self.assertAlmostEqual(organ.get_phase(0.0),0,ALMOST_EQUAL_TOL)
+            self.assertAlmostEqual(organ.get_phase(1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
+            self.assertAlmostEqual(organ.get_phase(config.THETA_MAX/num),0,ALMOST_EQUAL_TOL)
         
     def test_organ_is_inside(self):
         
@@ -171,21 +177,21 @@ class TestNCT(unittest.TestCase):
         for input in [[0.1,0.2],[[0.1,0.2]], np.array([0.1,0.2]), 'abs']:
             self.assertRaises(AssertionError, organ.is_inside, input, 0)
         
-        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
+        for input in [-99999, 0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
             self.assertRaises(AssertionError, organ.is_inside, np.array([[0.5,0.5]]), input)
             
         # Test for functionality
         # Test for different times
-        self.assertEqual(organ.is_inside(np.array([[0.4,0.4]]),0), 0)
-        self.assertEqual(organ.is_inside(np.array([[0.4,0.4]]),int(0.3*config.THETA_MAX)), 1)
+        self.assertEqual(organ.is_inside(np.array([[0.4,0.4]]),0.0), 0)
+        self.assertEqual(organ.is_inside(np.array([[0.4,0.4]]),0.3*config.THETA_MAX), 1)
         
-        self.assertEqual(organ.is_inside(np.array([[0.7,0.7]]),0), 0)
-        self.assertEqual(organ.is_inside(np.array([[0.1,0.1]]),0), 1)
+        self.assertEqual(organ.is_inside(np.array([[0.7,0.7]]),0.0), 0)
+        self.assertEqual(organ.is_inside(np.array([[0.1,0.1]]),0.0), 1)
         
         # Change location of center
         organ = Organ(config,[0.5,0.5],0.5,0.5,'simple_sin','const2')
-        self.assertEqual(organ.is_inside(np.array([[0.7,0.7]]),0), 1)
-        self.assertEqual(organ.is_inside(np.array([[0.1,0.1]]),0), 0)
+        self.assertEqual(organ.is_inside(np.array([[0.7,0.7]]),0.0), 1)
+        self.assertEqual(organ.is_inside(np.array([[0.1,0.1]]),0.0), 0)
         
         
     def test_body_init(self):
@@ -208,7 +214,7 @@ class TestNCT(unittest.TestCase):
                                     [1,0],
                                     [0,0]])
         
-        self.assertEqual(np.linalg.norm(body.is_inside(pt,0)-correct_insides), 0)
+        self.assertEqual(np.linalg.norm(body.is_inside(pt,0.0)-correct_insides), 0.0)
         
     def test_sdfgt_init(self):
         
@@ -232,22 +238,47 @@ class TestNCT(unittest.TestCase):
     def test_sdfgt_forward(self):
         
         sdf = SDFGt(self.config, self.body)
-        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
+        for input in [-99999, 0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
             self.assertRaises(AssertionError, sdf.forward, input, True)
             
         for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
             self.assertRaises(AssertionError, sdf.forward, 0, input)
-        
-        image = sdf.forward(0, True).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
-        np.save('test_outputs/sdfgt_forward_combine_true',image)
-        
-        image = sdf.forward(0, False).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1])
-        np.save('test_outputs/sdfgt_forward_combine_false',image)
-        
-        
-        
+            
+        for t in [0.0,0.3*self.config.THETA_MAX, 1.0*self.config.THETA_MAX]:
+            image = sdf.forward(t, True).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
+            np.save('test_outputs/sdfgt_forward_combine_true',image)
+
+            image = sdf.forward(t, False).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1])
+            np.save('test_outputs/sdfgt_forward_combine_false',image)
         
         
+    def test_renderer_init(self):
+        
+        sdf = SDF()
+        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
+            self.assertRaises(AssertionError, Renderer, input, sdf)
+            
+        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
+            self.assertRaises(AssertionError, Renderer, self.config, input)
+            
+    def test_renderer(self):
+        
+        # Test Snapshot
+        sdf = SDFGt(self.config, self.body)
+        renderer = Renderer(self.config, sdf)
+        for input in [-99999, 0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
+            self.assertRaises(AssertionError, renderer.snapshot, input)
+            
+        for t in [0.0,0.3*self.config.THETA_MAX, 1.0*self.config.THETA_MAX]:
+            renderer.snapshot(t)
+
+        # Test forward
+        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([[0]])]:
+            self.assertRaises(AssertionError, renderer.forward, input)
+        
+        all_thetas = np.linspace(0,self.config.THETA_MAX, self.config.TOTAL_CLICKS)
+        
+        renderer.forward(all_thetas)
         
         
         
