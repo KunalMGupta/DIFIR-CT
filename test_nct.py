@@ -251,16 +251,31 @@ class TestNCT(unittest.TestCase):
             image = sdf.forward(t, False).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1])
             np.save('test_outputs/sdfgt_forward_combine_false',image)
         
+        # Test for single organ
+        config = Config(np.array([[0.3]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=1)
+        body = Body(config, [Organ(config,[0.6,0.6],0.2,0.2,'simple_sin','const2')])
+        sdf = SDFGt(config, body)
+        sdf.forward(0.0, True)
+        sdf.forward(0.0, False)
+        
         
     def test_sdf_to_occ(self):
-        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0]),torch.Tensor([0,1])]:
+        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0]),torch.Tensor([0,1]),torch.Tensor([[0,1]])]:
             self.assertRaises(AssertionError, sdf_to_occ, input)
             
         for input, output in zip([-99,-1,-0.1,-0.01,0.0,0.01,0.1,1,99],
                                  [  0, 0,   0,    0,  0,0.12,  1,1, 1]):
             
             self.assertAlmostEqual(np.linalg.norm(
-                sdf_to_occ(torch.Tensor([input]).view(1,1)).numpy()-output),0,ALMOST_EQUAL_TOL)
+                sdf_to_occ(torch.Tensor([input]).view(1,1,1)).numpy()-output),0,ALMOST_EQUAL_TOL)
+            
+#     def test_occ_to_sdf(self):
+#         for input in [0.0, None, np.nan, 'abc', [0], np.array([0]), torch.Tensor([[[0,1]]]), np.array([[0,1],[2,3]]), np.random.rand(10,10,3)]:
+#             self.assertRaises(AssertionError, occ_to_sdf, input)
+            
+#         sdf = SDFGt(self.config, self.body).forward(0.0,False)
+#         print(sdf.shape)
+#         occ = sdf_to_occ(sdf)
             
     def test_renderer_init(self):
         

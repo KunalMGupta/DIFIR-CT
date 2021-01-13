@@ -11,8 +11,27 @@ def sdf_to_occ(x):
     '''
     Converts sign distance to occupancy for rendering
     '''
-    assert isinstance(x, torch.Tensor) and len(x.shape) == 2, 'Input must be a 2D torch tensor'
-    return torch.clamp(50*(torch.sigmoid(x) - 0.5),0,1)  # (0,1) -> (-0.5,0.5) -> (-10,10) -> (0,1)
+    assert isinstance(x, torch.Tensor) and len(x.shape) == 3, 'Input must be a 3D torch tensor'
+    occ = torch.zeros(x.shape)
+    for i in range(x.shape[2]):
+        occ[...,i] = torch.clamp(50*(torch.sigmoid(x[...,i]) - 0.5),0,1)  # (0,1) -> (-0.5,0.5) -> (-10,10) -> (0,1)
+        
+    return occ
+
+def occ_to_sdf(x):
+    '''
+    This function convets a binary occupancy image into a signed distance image.
+    '''
+    assert isinstance(x, np.ndarray) and len(x.shape) == 3, 'x must be a 3D array containing separate images for each organ'
+    assert np.sum(x==1) + np.sum(x==0) == x.shape[0]*x.shape[1]*x.shape[2], 'x must only have values 0 and 1' 
+    
+    dist_img = np.zeros_like(x)
+
+    for i in range(x.shape[2]):
+        dist_img[...,i] = ndimage.distance_transform_bf(x[...,i]==1) - ndimage.distance_transform_bf(x[...,i]==0)
+
+    return dist_img
+
 
 class SDF(nn.Module):
     def __init__(self):
@@ -71,11 +90,11 @@ class Renderer(nn.Module):
         
         rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t*360/self.config.GANTRY_VIEWS_PER_ROTATION]) , torch.ones(1)).cuda()
         
-        canvas = kornia.warp_affine(self.sdf(t, combine=True), rotM, dsize=(self.config.IMAGE_RESOLUTION, self.config.IMAGE_RESOLUTION)).view(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
+        canvas = kornia.warp_affine(self.sdf(t, combine=True), rotM, dsize=(self.config.IMAGE_RESOLUTION, self.config.IMAGE_RESOLUTION)).view(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,1)
         
         canvas = sdf_to_occ(canvas)
         
-        result = torch.sum(canvas, axis=1)/self.config.IMAGE_RESOLUTION
+        result = (torch.sum(canvas, axis=1)/self.config.IMAGE_RESOLUTION).view(-1)
         
         assert len(result.shape) ==1, 'Canvas should be a 1D array'
         return result
