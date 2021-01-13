@@ -269,13 +269,22 @@ class TestNCT(unittest.TestCase):
             self.assertAlmostEqual(np.linalg.norm(
                 sdf_to_occ(torch.Tensor([input]).view(1,1,1)).numpy()-output),0,ALMOST_EQUAL_TOL)
             
-#     def test_occ_to_sdf(self):
-#         for input in [0.0, None, np.nan, 'abc', [0], np.array([0]), torch.Tensor([[[0,1]]]), np.array([[0,1],[2,3]]), np.random.rand(10,10,3)]:
-#             self.assertRaises(AssertionError, occ_to_sdf, input)
-            
-#         sdf = SDFGt(self.config, self.body).forward(0.0,False)
-#         print(sdf.shape)
-#         occ = sdf_to_occ(sdf)
+    def test_occ_to_sdf(self):
+        for input in [0.0, None, np.nan, 'abc', [0], np.array([0]), torch.Tensor([[[0,1]]]), np.array([[0,1],[2,3]]), np.random.rand(10,10,3)]:
+            self.assertRaises(AssertionError, occ_to_sdf, input)
+                
+        # Load a test 2 organ intensity array
+        sdf = np.load('test_two_organ_intensity.npy')       
+        # convert it to occupancy function (should not change anything for this case)
+        occ = sdf_to_occ(torch.from_numpy(sdf).cuda()).detach().cpu().numpy()
+        # Now convert it back to an SDF and then the intensities would be all those places where sdf>0
+        sdf_back = (occ_to_sdf(occ) > 0)*1.0
+        
+        np.save('test_outputs/occ_to_sdf_occ',occ)
+        np.save('test_outputs/occ_to_sdf_sdf_back',sdf_back)
+        
+        # sdf and sdf_back should be the same
+        self.assertAlmostEqual(np.linalg.norm(sdf_back-sdf),0,ALMOST_EQUAL_TOL)
             
     def test_renderer_init(self):
         

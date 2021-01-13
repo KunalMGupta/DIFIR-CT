@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import kornia
 from skimage.transform import iradon
+from scipy import ndimage
+
 
 from config import Config
 from anatomy import Body
