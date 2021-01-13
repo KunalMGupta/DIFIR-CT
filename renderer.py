@@ -68,7 +68,12 @@ class SDFGt(SDF):
             canvas = torch.from_numpy(self.body.is_inside(self.pts, t)@self.config.INTENSITIES.T).\
             view(1,1,self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION).cuda().float()
         else:
-            canvas = torch.from_numpy(self.body.is_inside(self.pts, t)).view(1,1,self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1]).cuda().float()
+            # Convert is_inside values to SDFs
+            inside = self.body.is_inside(self.pts, t)
+            inside_sdf = occ_to_sdf(inside.reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,-1))
+            canvas = torch.from_numpy(inside_sdf)\
+            .view(1,1,self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1]).cuda().float()
+
             
         return canvas
     
