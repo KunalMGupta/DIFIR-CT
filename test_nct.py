@@ -252,6 +252,16 @@ class TestNCT(unittest.TestCase):
             np.save('test_outputs/sdfgt_forward_combine_false',image)
         
         
+    def test_sdf_to_occ(self):
+        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0]),torch.Tensor([0,1])]:
+            self.assertRaises(AssertionError, sdf_to_occ, input)
+            
+        for input, output in zip([-99,-1,-0.1,-0.01,0.0,0.01,0.1,1,99],
+                                 [  0, 0,   0,    0,  0,0.12,  1,1, 1]):
+            
+            self.assertAlmostEqual(np.linalg.norm(
+                sdf_to_occ(torch.Tensor([input]).view(1,1)).numpy()-output),0,ALMOST_EQUAL_TOL)
+            
     def test_renderer_init(self):
         
         sdf = SDF()
@@ -263,23 +273,45 @@ class TestNCT(unittest.TestCase):
             
     def test_renderer(self):
         
+        config = Config(np.array([[0.3]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=1)
+        body = Body(config, [Organ(self.config,[0.6,0.6],0.2,0.2,'const','const2')])
+        
         # Test Snapshot
-        sdf = SDFGt(self.config, self.body)
-        renderer = Renderer(self.config, sdf)
+        sdf = SDFGt(config, body)
+        renderer = Renderer(config, sdf)
         for input in [-99999, 0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
             self.assertRaises(AssertionError, renderer.snapshot, input)
             
-        for t in [0.0,0.3*self.config.THETA_MAX, 1.0*self.config.THETA_MAX]:
+        for t in [0.0,0.3*config.THETA_MAX, 1.0*self.config.THETA_MAX]:
             renderer.snapshot(t)
 
-        # Test forward
+        # Test forward inputs
         for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([[0]])]:
             self.assertRaises(AssertionError, renderer.forward, input)
         
-        all_thetas = np.linspace(0,self.config.THETA_MAX, self.config.TOTAL_CLICKS)
+        # Test compute_rigid_fbp inputs
+        all_thetas = np.linspace(0,config.THETA_MAX, config.TOTAL_CLICKS)
+        for input in [0.0, [[0.0,0.1],1,2], np.array([0.0,0.1]), torch.Tensor([[1,2],[3,4]]), 'abc']:
+            self.assertRaises(AssertionError, renderer.compute_rigid_fbp, input, all_thetas)
         
-        renderer.forward(all_thetas)
+        for input in [0.0, [[0.0,0.1],[1,2]], np.array([0.0,0.1]), np.array([[0.0,0.1],[1,2]]),torch.Tensor([[1,2]]), 'abc']:
+            self.assertRaises(AssertionError, renderer.compute_rigid_fbp, np.zeros((10,20)), all_thetas)
         
+        # Test by visualizing results of forward and rigid fbp
+        sinogram = renderer.forward(all_thetas).detach().cpu().numpy()
+        fbp = renderer.compute_rigid_fbp(sinogram,all_thetas)
+        np.save('test_outputs/renderer_forward',sinogram)
+        np.save('test_outputs/renderer_fbp',fbp)
+        
+        # Test if forward and and fbp are inverse of each other
+        sdf = sdf.forward(0.0,True).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
+        np.save('test_outputs/renderer_sdf',sdf)
+        
+        A = 1.0*(sdf > 0.01)
+        B = 1.0*(fbp > 0.01)
+        C = A-B
+        
+        self.assertAlmostEqual(np.linalg.norm(C)/(C.shape[0]*C.shape[1]), 0, ALMOST_EQUAL_TOL)
         
         
         

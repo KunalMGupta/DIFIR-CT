@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import kornia
+from skimage.transform import iradon
+
 from config import Config
 from anatomy import Body
 
@@ -9,7 +11,8 @@ def sdf_to_occ(x):
     '''
     Converts sign distance to occupancy for rendering
     '''
-    return torch.clamp(20*(torch.sigmoid(x) - 0.5),0,1)  # (0,1) -> (-0.5,0.5) -> (-10,10) -> (0,1)
+    assert isinstance(x, torch.Tensor) and len(x.shape) == 2, 'Input must be a 2D torch tensor'
+    return torch.clamp(50*(torch.sigmoid(x) - 0.5),0,1)  # (0,1) -> (-0.5,0.5) -> (-10,10) -> (0,1)
 
 class SDF(nn.Module):
     def __init__(self):
@@ -68,11 +71,11 @@ class Renderer(nn.Module):
         
         rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t*360/self.config.GANTRY_VIEWS_PER_ROTATION]) , torch.ones(1)).cuda()
         
-        canvas = kornia.warp_affine(self.sdf(t, combine=True), rotM, dsize=(self.config.IMAGE_RESOLUTION, self.config.IMAGE_RESOLUTION))
+        canvas = kornia.warp_affine(self.sdf(t, combine=True), rotM, dsize=(self.config.IMAGE_RESOLUTION, self.config.IMAGE_RESOLUTION)).view(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
         
         canvas = sdf_to_occ(canvas)
         
-        result = torch.sum(canvas.view(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION), axis=1)/self.config.IMAGE_RESOLUTION
+        result = torch.sum(canvas, axis=1)/self.config.IMAGE_RESOLUTION
         
         assert len(result.shape) ==1, 'Canvas should be a 1D array'
         return result
@@ -86,6 +89,16 @@ class Renderer(nn.Module):
             self.intensity[:,i] = self.snapshot(theta)
             
         return self.intensity
+    
+    def compute_rigid_fbp(self, x, all_thetas):
+        '''
+        Computes the filtered back projection assuming rigid bodies
+        '''
+        assert isinstance(x, np.ndarray) and len(x.shape) == 2, 'x must be a 2D numpy array'
+        assert isinstance(x, np.ndarray) and len(all_thetas.shape) == 1, 'all_thetas must be a 1D numpy array'
+        assert all_thetas.shape[0] == x.shape[1], 'number of angles are not equal to the number of sinogram projections!'
+
+        return iradon(x, theta=all_thetas/2,circle=True)
         
         
         
