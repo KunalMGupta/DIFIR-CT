@@ -3,6 +3,9 @@ import numpy as np
 
 from config import Config
 from anatomy import Motion, Organ, Body
+from renderer import SDFGt
+
+import os
         
 ALMOST_EQUAL_TOL = 2    
     
@@ -10,6 +13,11 @@ class TestNCT(unittest.TestCase):
     
     def setUp(self):
         self.config = Config(np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
+        self.body = Body(self.config, [Organ(self.config,[0.5,0.5],0.2,0.2,'simple_sin','const2'),
+                                       Organ(self.config,[0.2,0.2],0.2,0.2,'simple_sin','const2')])
+        
+        if os.path.exists('test_outputs'):
+            os.systems('cd test_outputs && rm *')
         
     def test_config_inputs(self):
 
@@ -187,7 +195,6 @@ class TestNCT(unittest.TestCase):
         
     def test_body_is_inside(self):
         
-        
         organs = [Organ(self.config,[0.5,0.5],0.2,0.2,'simple_sin','const2'),
                   Organ(self.config,[0.2,0.2],0.2,0.2,'simple_sin','const2')]
         
@@ -202,6 +209,50 @@ class TestNCT(unittest.TestCase):
                                     [0,0]])
         
         self.assertEqual(np.linalg.norm(body.is_inside(pt,0)-correct_insides), 0)
+        
+    def test_sdfgt_init(self):
+        
+        body = Body(self.config, [Organ(self.config,[0.5,0.5],0.2,0.2,'simple_sin','const2'),
+                                  Organ(self.config,[0.2,0.2],0.2,0.2,'simple_sin','const2')])
+        
+        # Test for config
+        for input in ['a',0.2,[1.0,2.0],np.array([[1,2]]),None]:
+            self.assertRaises(AssertionError,SDFGt, input,body)
+            
+        # Test for body
+        for input in ['a',0.2,[1.0,2.0],np.array([[1,2]]),None]:
+            self.assertRaises(AssertionError,SDFGt, self.config, input)
+           
+        config = Config(np.array([[0.3]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
+        
+        body = Body(config, [Organ(config,[0.5,0.5],0.2,0.2,'simple_sin','const2')])
+        self.assertRaises(AssertionError,SDFGt, self.config, body)
+        
+            
+    def test_sdfgt_forward(self):
+        
+        sdf = SDFGt(self.config, self.body)
+        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
+            self.assertRaises(AssertionError, sdf.forward, input, True)
+            
+        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
+            self.assertRaises(AssertionError, sdf.forward, 0, input)
+        
+        image = sdf.forward(0, True).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
+        np.save('test_outputs/sdfgt_forward_combine_true',image)
+        
+        image = sdf.forward(0, False).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1])
+        np.save('test_outputs/sdfgt_forward_combine_false',image)
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         
         
 if __name__ == '__main__':

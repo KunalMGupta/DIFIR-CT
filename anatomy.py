@@ -188,8 +188,8 @@ class Organ:
         (-THETA_MAX, +THETA_MAX)  --> (0,1)
         
         '''
-        assert t >= -self.config.THETA_MAX and t <= self.config.THETA_MAX, 't = {} is out of range'.format(t)
         assert isinstance(t, int), 't = {} must be an integer here'.format(t)
+        assert t >= -self.config.THETA_MAX and t <= self.config.THETA_MAX, 't = {} is out of range'.format(t)
         
         t = self.config.GANTRY2HEART_SCALE*t
 
