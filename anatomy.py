@@ -2,6 +2,32 @@ import numpy as np
 from config import Config
 import warnings
 
+
+def get_phase(config, t):
+    '''
+    Calculates the correct phase of the organ motion given time of gantry
+    (-THETA_MAX, +THETA_MAX)  --> (0,1)
+
+    '''
+    assert isinstance(config, Config), 'config must be an instance of class Config'
+    assert isinstance(t, float), 't = {} must be an integer here'.format(t)
+    assert t >= -config.THETA_MAX and t <= config.THETA_MAX, 't = {} is out of range'.format(t)
+
+    t = config.GANTRY2HEART_SCALE*t
+
+    if t>1 or t<-1:
+        t-=int(t)
+
+    if t < 0:
+        t +=1
+
+    if t > 0.999:
+        t = 0.0
+
+    assert t >=0 and t <= 1, 'Resultant t = {} is out of range (0,1)'.format(t)
+
+    return t
+
 class Motion:
     def __init__(self, config):
         
@@ -181,30 +207,6 @@ class Organ:
         assert len(result.shape) == 2, 'result has incorrect shape of {}'.format(result.shape)
         
         return result
-            
-    def get_phase(self, t):
-        '''
-        Calculates the correct phase of the organ motion given time of gantry
-        (-THETA_MAX, +THETA_MAX)  --> (0,1)
-        
-        '''
-        assert isinstance(t, float), 't = {} must be an integer here'.format(t)
-        assert t >= -self.config.THETA_MAX and t <= self.config.THETA_MAX, 't = {} is out of range'.format(t)
-        
-        t = self.config.GANTRY2HEART_SCALE*t
-
-        if t>1 or t<-1:
-            t-=int(t)
-        
-        if t < 0:
-            t +=1
-            
-        if t > 0.999:
-            t = 0.0
-            
-        assert t >=0 and t <= 1, 'Resultant t = {} is out of range (0,1)'.format(t)
-        
-        return t
          
     def is_inside(self, pt, t):
         '''
@@ -216,7 +218,7 @@ class Organ:
         assert isinstance(pt, np.ndarray) and len(pt.shape) == 2, 'pt must be a 2D numpy array'
         assert isinstance(t, float) and abs(t) <= self.config.THETA_MAX, 'Time is out of range: {}'.format(t)
         
-        t = self.get_phase(t)
+        t = get_phase(self.config,t)
         delta_cx, delta_cy = self.func_c(1.0, t)
         pt_new = pt.copy()
         pt_new[:,0] -= delta_cx

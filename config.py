@@ -21,7 +21,7 @@ class Config:
         self.GANTRY_ROTATION_PERIOD = 275        # Time (ms) it takes for the gantry to complete a single 360 degree rotation
         self.NUM_HEART_BEATS = NUM_HEART_BEATS   # Number of heart beats during the time HEART_BEAT_PERIOD
         self.INTENSITIES = INTENSITIES
-        
+        self.TYPE = TYPE
         '''
         NOTE: In the current setup, all of motion happens within the period HEART_BEAT_PERIOD. In case there are N hearbeats, then the time period of each heart beat is taken as HEART_BEAT_PERIOD/N. 
         '''
@@ -29,19 +29,19 @@ class Config:
         '''
         Parameters for defining experimental setup
         '''
-        if TYPE==0:
+        if self.TYPE==0:
         # To run gantry for a single 360 degree rotation
             self.TOTAL_CLICKS = self.GANTRY_VIEWS_PER_ROTATION
             self.THETA_MAX = 360
             self.GANTRY2HEART_SCALE = (self.NUM_HEART_BEATS/self.THETA_MAX)*(self.GANTRY_ROTATION_PERIOD/self.HEART_BEAT_PERIOD)
         
-        elif TYPE==1:
+        elif self.TYPE==1:
         # Otherwise, to run gantry for a single heart beat
             self.TOTAL_CLICKS = int(self.GANTRY_VIEWS_PER_ROTATION * (self.HEART_BEAT_PERIOD/self.GANTRY_ROTATION_PERIOD)/self.NUM_HEART_BEATS)
             self.THETA_MAX = int(360 * (self.HEART_BEAT_PERIOD/self.GANTRY_ROTATION_PERIOD)/self.NUM_HEART_BEATS)
             self.GANTRY2HEART_SCALE = 1/(self.THETA_MAX)
         
-        elif TYPE==2:
+        elif self.TYPE==2:
         # Lastly, if you wish to run gantry to capture N heart beats then
             self.TOTAL_CLICKS = int(self.GANTRY_VIEWS_PER_ROTATION * (self.HEART_BEAT_PERIOD/self.GANTRY_ROTATION_PERIOD))
             self.THETA_MAX = int(360 * (self.HEART_BEAT_PERIOD/self.GANTRY_ROTATION_PERIOD))

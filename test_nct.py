@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 
 from config import Config
-from anatomy import Motion, Organ, Body
+from anatomy import *
 from renderer import *
 
 import os
@@ -147,26 +147,26 @@ class TestNCT(unittest.TestCase):
         config = Config(np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
         organ = Organ(config, [0.0,0.0],1.0,1.0,'const','const2')
         
-        self.assertAlmostEqual(organ.get_phase(0.0),0,ALMOST_EQUAL_TOL)
-        self.assertAlmostEqual(organ.get_phase(1.0*config.THETA_MAX),config.NUM_HEART_BEATS*
+        self.assertAlmostEqual(get_phase(config,0.0),0,ALMOST_EQUAL_TOL)
+        self.assertAlmostEqual(get_phase(config,1.0*config.THETA_MAX),config.NUM_HEART_BEATS*
                          config.GANTRY_ROTATION_PERIOD/config.HEART_BEAT_PERIOD,ALMOST_EQUAL_TOL)
-        self.assertAlmostEqual(organ.get_phase(-1.0*config.THETA_MAX),1-config.NUM_HEART_BEATS*
+        self.assertAlmostEqual(get_phase(config,-1.0*config.THETA_MAX),1-config.NUM_HEART_BEATS*
                          config.GANTRY_ROTATION_PERIOD/config.HEART_BEAT_PERIOD,ALMOST_EQUAL_TOL)
         
         # Testing for Type 1
         config = Config(np.array([[0.3,0.6]]), TYPE=1, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
         organ = Organ(config, [0.0,0.0],1.0,1.0,'const','const2')
-        self.assertAlmostEqual(organ.get_phase(0.0),0,ALMOST_EQUAL_TOL)
-        self.assertAlmostEqual(organ.get_phase(1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
-        self.assertAlmostEqual(organ.get_phase(-1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
+        self.assertAlmostEqual(get_phase(config,0.0),0,ALMOST_EQUAL_TOL)
+        self.assertAlmostEqual(get_phase(config,1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
+        self.assertAlmostEqual(get_phase(config,-1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
         
         # Testing for Type 2
         for num in [1.0,2.0,3.0]:
             config = Config(np.array([[0.3,0.6]]), TYPE=2, NUM_HEART_BEATS=num, NUM_SDFS=2)
             organ = Organ(config, [0.0,0.0],1.0,1.0,'const','const2')
-            self.assertAlmostEqual(organ.get_phase(0.0),0,ALMOST_EQUAL_TOL)
-            self.assertAlmostEqual(organ.get_phase(1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
-            self.assertAlmostEqual(organ.get_phase(config.THETA_MAX/num),0,ALMOST_EQUAL_TOL)
+            self.assertAlmostEqual(get_phase(config,0.0),0,ALMOST_EQUAL_TOL)
+            self.assertAlmostEqual(get_phase(config,1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
+            self.assertAlmostEqual(get_phase(config,config.THETA_MAX/num),0,ALMOST_EQUAL_TOL)
         
     def test_organ_is_inside(self):
         
