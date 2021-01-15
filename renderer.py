@@ -55,29 +55,22 @@ class SDFGt(SDF):
         self.body = body
         x,y = np.meshgrid(np.linspace(0,1,config.IMAGE_RESOLUTION),np.linspace(0,1,config.IMAGE_RESOLUTION))
         self.pts = np.hstack((x.reshape(-1,1),y.reshape(-1,1)))
-        
-    def forward(self, t, combine=False):
+      
+    def forward(self, t):
         '''
         Calculates the ground truth SDF or Image for given time of gantry
         '''
         assert isinstance(t, float), 't = {} must be a float here'.format(t)
         assert t >= -self.config.THETA_MAX and t <= self.config.THETA_MAX, 't = {} is out of range'.format(t)
-        assert isinstance(combine, bool), 'combine must be a boolean'
         
-        if combine:
-            canvas = torch.from_numpy(self.body.is_inside(self.pts, t)@self.config.INTENSITIES.T).\
-            view(1,1,self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION).cuda().float()
-        else:
-            # Convert is_inside values to SDFs
-            inside = self.body.is_inside(self.pts, t)
-            inside_sdf = occ_to_sdf(inside.reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,-1))
-            canvas = torch.from_numpy(inside_sdf)\
-            .view(1,1,self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1]).cuda().float()
-
-            
+        inside = self.body.is_inside(self.pts, t)
+        inside_sdf = occ_to_sdf(inside.reshape(self.config.IMAGE_RESOLUTION,
+                                               self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1]))
+        
+        canvas = torch.from_numpy(inside_sdf)
+        assert len(canvas.shape) == 3, 'Canvas must be a 3D tensor, instead is of shape: {}'.format(canvas.shape)
         return canvas
-    
-    
+
 class Renderer(nn.Module):
     def __init__(self, config, sdf):
         super(Renderer, self).__init__()
@@ -87,6 +80,8 @@ class Renderer(nn.Module):
         
         self.config = config
         self.sdf = sdf
+        self.intensities = torch.from_numpy(self.config.INTENSITIES).view(1,1,-1)
+#         self.flag = True
         
     def snapshot(self,t):
         '''
@@ -97,13 +92,19 @@ class Renderer(nn.Module):
         
         rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t*360/self.config.GANTRY_VIEWS_PER_ROTATION]) , torch.ones(1)).cuda()
         
-        canvas = kornia.warp_affine(self.sdf(t, combine=True), rotM, dsize=(self.config.IMAGE_RESOLUTION, self.config.IMAGE_RESOLUTION)).view(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,1)
+        canvas = sdf_to_occ(self.sdf(t))
+        canvas = torch.sum(canvas*self.intensities.type_as(canvas),dim=2)
+        assert canvas.shape == (self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
         
-        canvas = sdf_to_occ(canvas)
+        canvas = kornia.warp_affine(canvas.unsqueeze(0).unsqueeze(1).cuda(), rotM, dsize=(self.config.IMAGE_RESOLUTION, self.config.IMAGE_RESOLUTION)).view(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
+
+#         if self.flag:
+#             np.save('test_outputs/test',canvas.detach().cpu().numpy())
+#             self.flag = False
+
+        result = (torch.sum(canvas, axis=1)/self.config.IMAGE_RESOLUTION)
         
-        result = (torch.sum(canvas, axis=1)/self.config.IMAGE_RESOLUTION).view(-1)
-        
-        assert len(result.shape) ==1, 'Canvas should be a 1D array'
+        assert len(result.shape) ==1, 'result has shape :{} instead should be a 1D array'.format(result.shape)
         return result
         
     def forward(self, all_thetas):
@@ -125,9 +126,4 @@ class Renderer(nn.Module):
         assert all_thetas.shape[0] == x.shape[1], 'number of angles are not equal to the number of sinogram projections!'
 
         return iradon(x, theta=all_thetas/2,circle=True)
-        
-        
-        
-        
-        
         

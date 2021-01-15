@@ -22,8 +22,8 @@ class TestNCT(unittest.TestCase):
             
     def setUp(self):
         self.config = Config(np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
-        self.body = Body(self.config, [Organ(self.config,[0.6,0.6],0.2,0.2,'simple_sin','const2'),
-                                       Organ(self.config,[0.2,0.2],0.2,0.2,'simple_sin','const2')])
+        self.body = Body(self.config, [Organ(self.config,[0.6,0.6],0.1,0.1,'simple_sin','const2'),
+                                       Organ(self.config,[0.3,0.3],0.1,0.1,'simple_sin','const2')])
         
     def test_config_inputs(self):
 
@@ -239,24 +239,18 @@ class TestNCT(unittest.TestCase):
         
         sdf = SDFGt(self.config, self.body)
         for input in [-99999, 0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
-            self.assertRaises(AssertionError, sdf.forward, input, True)
-            
-        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
-            self.assertRaises(AssertionError, sdf.forward, 0, input)
-            
+            self.assertRaises(AssertionError, sdf.forward, input)
+        
         for t in [0.0,0.3*self.config.THETA_MAX, 1.0*self.config.THETA_MAX]:
-            image = sdf.forward(t, True).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
-            np.save('test_outputs/sdfgt_forward_combine_true',image)
-
-            image = sdf.forward(t, False).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1])
-            np.save('test_outputs/sdfgt_forward_combine_false',image)
+            image = sdf.forward(t).detach().cpu().numpy().\
+            reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1])            
+            np.save('test_outputs/sdfgt_forward',image)
         
         # Test for single organ
         config = Config(np.array([[0.3]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=1)
         body = Body(config, [Organ(config,[0.6,0.6],0.2,0.2,'simple_sin','const2')])
         sdf = SDFGt(config, body)
-        sdf.forward(0.0, True)
-        sdf.forward(0.0, False)
+        sdf.forward(0.0)
         
         
     def test_sdf_to_occ(self):
@@ -322,16 +316,20 @@ class TestNCT(unittest.TestCase):
             self.assertRaises(AssertionError, renderer.compute_rigid_fbp, np.zeros((10,20)), all_thetas)
         
         # Test by visualizing results of forward and rigid fbp
+        sdf = SDFGt(self.config, self.body)
+        renderer = Renderer(self.config, sdf)
+        all_thetas = np.linspace(0,config.THETA_MAX, config.TOTAL_CLICKS)
         sinogram = renderer.forward(all_thetas).detach().cpu().numpy()
         fbp = renderer.compute_rigid_fbp(sinogram,all_thetas)
+        
         np.save('test_outputs/renderer_forward',sinogram)
         np.save('test_outputs/renderer_fbp',fbp)
         
         # Test if forward and and fbp are inverse of each other
-        sdf = sdf.forward(0.0,True).detach().cpu().numpy().reshape(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
+        sdf = sdf.forward(0.0).detach().cpu().numpy().reshape(
+            self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION,self.config.INTENSITIES.shape[1])
         np.save('test_outputs/renderer_sdf',sdf)
-        
-        A = 1.0*(sdf > 0.01)
+        A = np.sum(1.0*(sdf > 0.0)*self.config.INTENSITIES.reshape(1,1,-1), axis=2)
         B = 1.0*(fbp > 0.01)
         C = A-B
         
