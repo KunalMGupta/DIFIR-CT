@@ -56,3 +56,10 @@ class Siren(nn.Module):
     def forward(self, coords):
         output = self.net(coords)
         return output
+    
+    
+def gradient(y, x, grad_outputs=None):
+    if grad_outputs is None:
+        grad_outputs = torch.ones_like(y)
+    grad = torch.autograd.grad(y, [x], grad_outputs=grad_outputs, create_graph=True)[0]
+    return grad

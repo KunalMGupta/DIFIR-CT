@@ -90,7 +90,8 @@ class Renderer(nn.Module):
         assert isinstance(t, float), 't = {} must be a float here'.format(t)
         assert t >= -self.config.THETA_MAX and t <= self.config.THETA_MAX, 't = {} is out of range'.format(t)
         
-        rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t*360/self.config.GANTRY_VIEWS_PER_ROTATION]) , torch.ones(1)).cuda()
+#         rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t*360/self.config.GANTRY_VIEWS_PER_ROTATION]) , torch.ones(1)).cuda()
+        rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t]) , torch.ones(1)).cuda()
         
         canvas = sdf_to_occ(self.sdf(t))
         canvas = torch.sum(canvas*self.intensities.type_as(canvas),dim=2)
@@ -109,8 +110,9 @@ class Renderer(nn.Module):
         
     def forward(self, all_thetas):
         
-        assert isinstance(all_thetas, np.ndarray) and len(all_thetas.shape) ==1 and all_thetas.dtype == float, 'all_thetas must be a 1D numpy array of integers'
-        
+        assert isinstance(all_thetas, np.ndarray) and len(all_thetas.shape) ==1, 'all_thetas must be a 1D numpy array of integers'
+        assert all_thetas.dtype == float, 'all_thetas must be a float, instead is : {}'.format(all_thetas.dtype)
+        assert all(abs(t) <= self.config.THETA_MAX for t in all_thetas), 'all_theta is out of range'.format(all_thetas)
         self.intensity = torch.zeros((self.config.IMAGE_RESOLUTION, all_thetas.shape[0])).cuda()
         for i, theta in enumerate(all_thetas):
             self.intensity[:,i] = self.snapshot(theta)
@@ -125,5 +127,5 @@ class Renderer(nn.Module):
         assert isinstance(x, np.ndarray) and len(all_thetas.shape) == 1, 'all_thetas must be a 1D numpy array'
         assert all_thetas.shape[0] == x.shape[1], 'number of angles are not equal to the number of sinogram projections!'
 
-        return iradon(x, theta=all_thetas/2,circle=True)
+        return iradon(x, theta=all_thetas,circle=True)
         

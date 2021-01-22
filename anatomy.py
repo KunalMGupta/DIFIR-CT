@@ -6,7 +6,7 @@ import warnings
 def get_phase(config, t):
     '''
     Calculates the correct phase of the organ motion given time of gantry
-    (-THETA_MAX, +THETA_MAX)  --> (0,1)
+    (-THETA_MAX, 0) or (0, +THETA_MAX)  --> (0,1).
 
     '''
     assert isinstance(config, Config), 'config must be an instance of class Config'
