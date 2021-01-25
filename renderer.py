@@ -90,7 +90,6 @@ class Renderer(nn.Module):
         assert isinstance(t, float), 't = {} must be a float here'.format(t)
         assert t >= -self.config.THETA_MAX and t <= self.config.THETA_MAX, 't = {} is out of range'.format(t)
         
-#         rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t*360/self.config.GANTRY_VIEWS_PER_ROTATION]) , torch.ones(1)).cuda()
         rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t]) , torch.ones(1)).cuda()
         
         canvas = sdf_to_occ(self.sdf(t))

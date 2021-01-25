@@ -15,7 +15,7 @@ class Config:
         assert isinstance(NUM_SDFS, int) and NUM_SDFS > 0 and NUM_SDFS < 5, 'NUM_SDFs should be positive integer not more than 5' 
         
         
-        self.IMAGE_RESOLUTION = 64              # Resolution of the CT image
+        self.IMAGE_RESOLUTION = 128              # Resolution of the CT image
         self.GANTRY_VIEWS_PER_ROTATION = 720     # Number of views that the gantry clicks in a single 360 degree rotation
         self.HEART_BEAT_PERIOD = 1000            # Time (ms) it takes the heart to beat once
         self.GANTRY_ROTATION_PERIOD = 275        # Time (ms) it takes for the gantry to complete a single 360 degree rotation
