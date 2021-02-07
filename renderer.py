@@ -71,8 +71,21 @@ class SDFGt(SDF):
         assert len(canvas.shape) == 3, 'Canvas must be a 3D tensor, instead is of shape: {}'.format(canvas.shape)
         return canvas
 
+class Intensities(nn.Module):
+    def __init__(self, config, learnable = False):
+        super(Intensities, self).__init__()
+        assert isinstance(config, Config), 'config must be an instance of class Config'
+        
+        if learnable:
+            self.inty = torch.nn.Parameter(torch.from_numpy(np.random.rand(1,config.INTENSITIES.shape[1])).view(1,1,-1))
+        else:
+            self.inty = torch.from_numpy(config.INTENSITIES).view(1,1,-1)
+            
+    def forward(self):    
+        return torch.clamp(self.inty, 0, 1)
+    
 class Renderer(nn.Module):
-    def __init__(self, config, sdf):
+    def __init__(self, config, sdf, learnable = False):
         super(Renderer, self).__init__()
         
         assert isinstance(config, Config), 'config must be an instance of class Config'
@@ -80,9 +93,8 @@ class Renderer(nn.Module):
         
         self.config = config
         self.sdf = sdf
-        self.intensities = torch.from_numpy(self.config.INTENSITIES).view(1,1,-1)
-#         self.flag = True
-        
+        self.intensities = Intensities(config, learnable = learnable)
+            
     def snapshot(self,t):
         '''
         Rotates the canvas at a particular angle and calculates the intensity
@@ -93,14 +105,11 @@ class Renderer(nn.Module):
         rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t]) , torch.ones(1)).cuda()
         
         canvas = sdf_to_occ(self.sdf(t))
-        canvas = torch.sum(canvas*self.intensities.type_as(canvas),dim=2)
+        canvas = torch.sum(canvas*self.intensities().type_as(canvas),dim=2)
+
         assert canvas.shape == (self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
         
         canvas = kornia.warp_affine(canvas.unsqueeze(0).unsqueeze(1).cuda(), rotM, dsize=(self.config.IMAGE_RESOLUTION, self.config.IMAGE_RESOLUTION)).view(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
-
-#         if self.flag:
-#             np.save('test_outputs/test',canvas.detach().cpu().numpy())
-#             self.flag = False
 
         result = (torch.sum(canvas, axis=1)/self.config.IMAGE_RESOLUTION)
         
@@ -111,7 +120,7 @@ class Renderer(nn.Module):
         
         assert isinstance(all_thetas, np.ndarray) and len(all_thetas.shape) ==1, 'all_thetas must be a 1D numpy array of integers'
         assert all_thetas.dtype == float, 'all_thetas must be a float, instead is : {}'.format(all_thetas.dtype)
-        assert all(abs(t) <= self.config.THETA_MAX for t in all_thetas), 'all_theta is out of range'.format(all_thetas)
+        assert all(abs(t) <= self.config.THETA_MAX for t in all_thetas), 'all_theta is out of range: {} but THETA_MAX is {}'.format(all_thetas, self.config.THETA_MAX)
         self.intensity = torch.zeros((self.config.IMAGE_RESOLUTION, all_thetas.shape[0])).cuda()
         for i, theta in enumerate(all_thetas):
             self.intensity[:,i] = self.snapshot(theta)

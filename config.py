@@ -1,6 +1,6 @@
 import numpy as np
 
-class Config: 
+class Config(object): 
     def __init__(self, INTENSITIES, TYPE=0, NUM_HEART_BEATS=2, NUM_SDFS=2):
         '''
         Define the Environment parameters of CT setup
