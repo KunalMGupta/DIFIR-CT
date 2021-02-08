@@ -18,7 +18,7 @@ from tqdm import tqdm
 
 def fetch_fbp_movie(config, body):
     
-    
+    intensities = Intensities(config, learnable = False)
     config = deepcopy(config)
     body = deepcopy(body)
     incr = 180
@@ -28,10 +28,11 @@ def fetch_fbp_movie(config, body):
     sdf = SDFGt(config, body)
     THETA_MAX = config.THETA_MAX+incr
     
+    
     with torch.no_grad():
         from skimage.transform import iradon
         all_thetas = np.linspace(-incr, config.THETA_MAX, config.TOTAL_CLICKS + 2*incr*2)
-        gtrenderer = Renderer(config,sdf)
+        gtrenderer = Renderer(config,sdf,intensities)
         sinogt = gtrenderer(all_thetas).detach().cpu().numpy()
         
     sinogram = sinogt.reshape(config.IMAGE_RESOLUTION, config.TOTAL_CLICKS+ 2*incr*int(config.GANTRY_VIEWS_PER_ROTATION/360))
@@ -108,7 +109,7 @@ def get_n_objects(img, num_components=2):
         label_image = np.zeros((img.shape[0],img.shape[1]))
         count=1
         for k in labels_to_use:
-            label_image += (gm.predict(reconstruction_fbp[...,i].reshape(-1,1)).reshape(img.shape[0],img.shape[1]) == k)*count
+            label_image += (gm.predict(img[...,i].reshape(-1,1)).reshape(img.shape[0],img.shape[1]) == k)*count
             count+=1
         labels[...,i] = label_image
         
@@ -348,80 +349,6 @@ def get_sinogram(config, sdf, intensities):
     
     return sinogram
 
-
-class Intensities(nn.Module):
-    def __init__(self, config, learnable = False, init = np.array([0.3,0.5])):
-        super(Intensities, self).__init__()
-        assert isinstance(config, Config), 'config must be an instance of class Config'
-        
-        if learnable:
-            self.inty = torch.nn.Parameter(torch.from_numpy(init).view(1,1,-1)) 
-        else:
-            self.inty = 0*torch.from_numpy(config.INTENSITIES).view(1,1,-1)
-        
-        self.config = config
-        self.default = torch.from_numpy(config.INTENSITIES).view(1,1,-1)
-        
-    def forward(self):    
-        residual = torch.clamp(self.inty, -1, 1)*0.05
-        
-        return self.default + residual
-    
-class Renderer(nn.Module):
-    def __init__(self, config, sdf, intensities):
-        super(Renderer, self).__init__()
-        
-        assert isinstance(config, Config), 'config must be an instance of class Config'
-        assert isinstance(sdf, SDF), 'sdf must be an instance of class SDF'
-        
-        self.config = config
-        self.sdf = sdf
-        self.intensities = intensities
-            
-    def snapshot(self,t):
-        '''
-        Rotates the canvas at a particular angle and calculates the intensity
-        '''
-        assert isinstance(t, float), 't = {} must be a float here'.format(t)
-        assert t >= -self.config.THETA_MAX and t <= self.config.THETA_MAX, 't = {} is out of range'.format(t)
-        
-        rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t]) , torch.ones(1)).cuda()
-        
-        canvas = sdf_to_occ(self.sdf(t))
-#         canvas = torch.sum(self.intensities(canvas).type_as(canvas),dim=2)
-        canvas = torch.sum(canvas*self.intensities().type_as(canvas),dim=2)
-
-        assert canvas.shape == (self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
-        
-        canvas = kornia.warp_affine(canvas.unsqueeze(0).unsqueeze(1).cuda(), rotM, dsize=(self.config.IMAGE_RESOLUTION, self.config.IMAGE_RESOLUTION)).view(self.config.IMAGE_RESOLUTION,self.config.IMAGE_RESOLUTION)
-
-        result = (torch.sum(canvas, axis=1)/self.config.IMAGE_RESOLUTION)
-        
-        assert len(result.shape) ==1, 'result has shape :{} instead should be a 1D array'.format(result.shape)
-        return result
-        
-    def forward(self, all_thetas):
-        
-        assert isinstance(all_thetas, np.ndarray) and len(all_thetas.shape) ==1, 'all_thetas must be a 1D numpy array of integers'
-        assert all_thetas.dtype == float, 'all_thetas must be a float, instead is : {}'.format(all_thetas.dtype)
-        assert all(abs(t) <= self.config.THETA_MAX for t in all_thetas), 'all_theta is out of range'.format(all_thetas)
-        self.intensity = torch.zeros((self.config.IMAGE_RESOLUTION, all_thetas.shape[0])).cuda()
-        for i, theta in enumerate(all_thetas):
-            self.intensity[:,i] = self.snapshot(theta)
-            
-        return self.intensity
-    
-    def compute_rigid_fbp(self, x, all_thetas):
-        '''
-        Computes the filtered back projection assuming rigid bodies
-        '''
-        assert isinstance(x, np.ndarray) and len(x.shape) == 2, 'x must be a 2D numpy array'
-        assert isinstance(x, np.ndarray) and len(all_thetas.shape) == 1, 'all_thetas must be a 1D numpy array'
-        assert all_thetas.shape[0] == x.shape[1], 'number of angles are not equal to the number of sinogram projections!'
-
-        return iradon(x, theta=all_thetas,circle=True)
-    
-    
 def train(config, sdf, gt_sinogram, lr=1e-4, init = np.array([0.25,0.82])):
         
     intensities = Intensities(config, learnable = False, init = init)
