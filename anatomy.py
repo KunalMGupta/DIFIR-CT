@@ -41,7 +41,9 @@ class Motion:
                         'figure_eight':self.figure_eight,
                         'rectangle':self.rectangle,
                         'const2':self.const2, 
-                        'simple_sin2': self.simple_sin2}
+                        'simple_sin2': self.simple_sin2,
+                        'circle': self.circle
+                        }
         
     def get_motion(self,size, location):
         assert isinstance(size, str) and isinstance(location, str), 'size and location are string parameters'
@@ -143,6 +145,16 @@ class Motion:
         y = np.sin(2*np.pi*t)*np.cos(2*np.pi*t)
         
         return val*x,val*y
+    
+    def circle(self, val, t):
+        assert isinstance(val, float), 'val must be a float'
+        assert isinstance(t, float) and t >= 0 and t <= 1, 't: {} must be a float between 0 and 1'.format(t)
+        
+        x = np.sin(2*np.pi*t)
+        y = np.cos(2*np.pi*t)
+        
+        val=0.2
+        return val*x, val*y
     
     def rectangle(self, val, t, a=2.0, b=1.0):
         assert isinstance(val, float), 'val must be a float'

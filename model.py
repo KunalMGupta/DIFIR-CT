@@ -16,6 +16,10 @@ from renderer import *
 from siren import *
 from tqdm import tqdm
 
+RADIUS = 0.15
+BAND = 180
+
+
 def fetch_fbp_movie(config, body):
     
     intensities = Intensities(config, learnable = False)
@@ -24,8 +28,11 @@ def fetch_fbp_movie(config, body):
     incr = 180
     
     config.THETA_MAX = config.THETA_MAX+2*incr
-    body.config.THETA_MAX = config.THETA_MAX 
-    sdf = SDFGt(config, body)
+    if isinstance(body,SDF):
+        sdf = body
+    else:
+        body.config.THETA_MAX = config.THETA_MAX 
+        sdf = SDFGt(config, body)
     THETA_MAX = config.THETA_MAX+incr
     
     
@@ -42,8 +49,31 @@ def fetch_fbp_movie(config, body):
         reconstruction_fbp[...,count] = iradon(sinogram[...,i:i+2*incr], theta = all_thetas[i:i+2*incr],circle=True).T
         count+=1
     
-    return sinogram, 132*reconstruction_fbp
+    return sinogram, 131*reconstruction_fbp
 
+def fetch_fbp_movie_exp1(config, body, gantry_offset=0.0, band = 180):
+    
+    # band is in unit degrees
+    band *= (config.GANTRY_VIEWS_PER_ROTATION/360)
+    band = int(band)
+    intensities = Intensities(config, learnable = False)
+    
+    sdf = SDFGt(config, body)
+    with torch.no_grad():
+        from skimage.transform import iradon
+        all_thetas = np.linspace(-gantry_offset, config.THETA_MAX-gantry_offset, config.TOTAL_CLICKS)
+        gtrenderer = Renderer(config,sdf,intensities)
+        sinogt = gtrenderer(all_thetas).detach().cpu().numpy()
+        
+    sinogram = sinogt.reshape(config.IMAGE_RESOLUTION, config.TOTAL_CLICKS)
+    reconstruction_fbp = np.zeros((config.IMAGE_RESOLUTION,config.IMAGE_RESOLUTION,config.TOTAL_CLICKS - band))
+    count=0
+    
+    for i in tqdm(range(0, config.TOTAL_CLICKS - band)):
+        reconstruction_fbp[...,count] = iradon(sinogram[...,i:i+band], theta = all_thetas[i:i+band],circle=True).T
+        count+=1
+    
+    return sinogram, 132*reconstruction_fbp
 
 def find_background_channel(image):
     
@@ -55,38 +85,10 @@ def find_background_channel(image):
         
     return total.index(max(total))
 
-def get_connect_componentes_per_frame(labels, num_components=2):
-    
-    num_components +=1
-    component_image = np.zeros((labels.shape[0],labels.shape[1],num_components))
-    
-    for idx in range(num_components):
-        
-        image = (labels==idx).astype('uint8')
-        
-        nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(image, connectivity=4)
-        
-        sizes = stats[:, -1]
-
-        max_label = 1
-        max_size = sizes[1]
-        for i in range(2, nb_components):
-            if sizes[i] > max_size:
-                max_label = i
-                max_size = sizes[i]
-
-        component_image[...,idx] = (output == max_label)
-        
-    background_index = find_background_channel(component_image)
-    
-    component_image = np.delete(component_image,background_index, axis=2).copy()
-    
-    return component_image
-
 def get_n_objects(img, num_components=2):
     
     assert isinstance(img, np.ndarray) and len(img.shape) == 3, 'img must be a 3D numpy array'
-#     assert isinstance(num_components, int) and num_components >= 2, 'num_components must be a integer more than or equal to 2'
+    assert isinstance(num_components, int), 'num_components must be a integer'
 
     num_components+=3
     proceed = True
@@ -94,25 +96,37 @@ def get_n_objects(img, num_components=2):
     while proceed and count<3:
         mask = np.random.randint(0,img.shape[2],int(0.02*img.shape[2]))
         X = img[...,mask].reshape(-1,1)
-        gm = GaussianMixture(n_components=5, random_state=0).fit(X)
-        labels_to_use = np.where(gm.means_[:,0]>0.1)[0]
+        gm = GaussianMixture(n_components=num_components, random_state=0).fit(X)
+        labels_to_use = np.where(gm.means_[:,0]>0.15)[0]
         
-        if labels_to_use.shape[0] == num_components-3:
+        if labels_to_use.shape[0] >= num_components-3:
+            print('Found labels : {} needed {}. Tried {} times'.format(labels_to_use,num_components-3,count+1))
             proceed = False
         else:
-            print('Segmentation failed, found labels : {}. Tried {} time'.format(labels_to_use,count+1))
+            print('Segmentation failed, found labels : {} needed {}. Tried {} times'.format(labels_to_use,num_components-3,count+1))
+            count+=1
+                
+    labels = np.zeros((img.shape))
+    for i in range(img.shape[2]):
+        label_image = np.zeros((img.shape[0],img.shape[1],labels_to_use.shape[0]))
+        count=1
+        sizes = []
+        for idx, k in enumerate(labels_to_use):
+            lbi = (gm.predict(img[...,i].reshape(-1,1)).reshape(img.shape[0],img.shape[1]) == k)
+            label_image[...,idx] = lbi*count
+            sizes.append(np.sum(lbi))
             count+=1
             
-    labels = np.zeros((img.shape))
-    
-    for i in range(img.shape[2]):
-        label_image = np.zeros((img.shape[0],img.shape[1]))
-        count=1
-        for k in labels_to_use:
-            label_image += (gm.predict(img[...,i].reshape(-1,1)).reshape(img.shape[0],img.shape[1]) == k)*count
-            count+=1
+        sizes2 = sizes    
+        sizes2.sort()
+
+        if sizes2[num_components-3:] != []:
+            labels_to_remove = sizes.index(sizes2[num_components-3:])
+            label_image = np.delete(label_image,labels_to_remove,axis=2)
+            
+        label_image = np.sum(label_image, axis=2)
+
         labels[...,i] = label_image
-        
     return labels.reshape(img.shape)
 
 def get_n_objects_for_movie(fbp_movie, num_components=2):
@@ -120,24 +134,24 @@ def get_n_objects_for_movie(fbp_movie, num_components=2):
     print("Computing Segmentations...")
     movie = get_n_objects(fbp_movie.copy(),num_components=num_components)
     movie_objects = np.zeros((movie.shape[0],movie.shape[1],movie.shape[2],num_components))
-    print("Computing connected components...")
-    for i in tqdm(range(movie.shape[2])):
-        movie_objects[...,i,:] = get_connect_componentes_per_frame(movie[...,i],num_components=num_components)
-
+    labels = np.arange(0,np.max(movie[...,0])).astype(np.int)
+    
+    for i in range(movie.shape[2]):
+        for l in labels:
+            movie_objects[...,i,l] = (movie[...,i] ==l+1)
+            
     print("Computing SDFs...")
     init = np.zeros((1,num_components))
     for j in tqdm(range(num_components)):
         for i in range(movie.shape[2]):
-#             movie_objects[...,i,j] = denoise_tv_chambolle(occ_to_sdf(movie_objects[...,i,j][...,np.newaxis]))[...,0]
-            occupancy = np.round(denoise_tv_chambolle(movie_objects[...,i,j][...,np.newaxis], weight=5))
-            movie_objects[...,i,j] = denoise_tv_chambolle(occ_to_sdf(occupancy), weight=5)[...,0]
-            
+            occupancy = np.round(denoise_tv_chambolle(movie_objects[...,i,j][...,np.newaxis]))
+            movie_objects[...,i,j] = denoise_tv_chambolle(occ_to_sdf(occupancy), weight=2)[...,0]
         img = fbp_movie[...,0]
-        test = np.where(occupancy>0.5)#[...,0]
-#         print(img.shape, test[0].shape)
+        test = np.where(movie_objects[...,0,0]>0)#[...,0]
         init[0,j] = np.median(img[test[0], test[1]])
         
     return movie_objects, init
+
 
 def get_pretraining_sdfs(config, sdf=None):
     if sdf is None:
@@ -148,8 +162,7 @@ def get_pretraining_sdfs(config, sdf=None):
                 organ = Organ(cfg, [0.6,0.6], 0.1, 0.1, 'simple_sin', 'simple_sin2')
             else:
                 organ = Organ(cfg, [0.3,0.3], 0.1, 0.1, 'simple_sin', 'simple_sin2')
-#             organ = Organ(cfg, [np.random.rand()*0.7+0.1,
-#                                 np.random.rand()*0.7+0.1], 0.1, 0.1, 'simple_sin', 'simple_sin2')
+
             body = Body(cfg,[organ])
             sdf = SDFGt(cfg, body)
             all_thetas = np.linspace(0., config.THETA_MAX, config.TOTAL_CLICKS)
@@ -165,7 +178,7 @@ def get_pretraining_sdfs(config, sdf=None):
         for i in range(config.NUM_SDFS):
             all_thetas = np.linspace(0., config.THETA_MAX, config.TOTAL_CLICKS)
             for j in range(config.TOTAL_CLICKS):
-                pretraining_sdfs[...,j,i] = occ_to_sdf(np.round(denoise_tv_chambolle(sdf_to_occ(sdf(all_thetas[j]))[...,i].detach().cpu().numpy()))[...,np.newaxis])[...,0]
+                pretraining_sdfs[...,j,i] = occ_to_sdf(np.round(denoise_tv_chambolle(sdf_to_occ(sdf(all_thetas[j]))[...,i].detach().cpu().numpy(), weight=2))[...,np.newaxis])[...,0]
         
         init = None
     return pretraining_sdfs, init
@@ -296,7 +309,8 @@ class SDFNCT(SDF):
         do_dxy = gradient(occupancy, self.pts)
         assert len(do_dxy.shape) == 2, 'Must be a 2D tensor, instead is {}'.format(do_dxy.shape)
         
-        dc_dt = gradient(canvas, t)/(np.prod(canvas.shape))
+        dc_dt = gradient(occupancy, t)/(np.prod(canvas.shape))
+#         dc_dt = gradient(canvas, t)/(np.prod(canvas.shape))
         assert len(dc_dt.shape) == 1, 'Must be a 1D tensor, instead is {}'.format(dc_dt.shape)
         
         eikonal = torch.abs(torch.norm(dc_dxy, dim=1) - 1).mean()
@@ -306,13 +320,10 @@ class SDFNCT(SDF):
         return eikonal, total_variation_space, total_variation_time
     
     
-def pretrain_sdf(config, sdf = None, lr = 1e-4):
-    
-
-    pretraining_sdfs, init = get_pretraining_sdfs(config, sdf)
-    
+def pretrain_sdf(config, pretraining_sdfs, init, lr = 1e-4):
+        
     assert len(pretraining_sdfs.shape) == 4, 'Invalid shape : {}'.format(pretraining_sdfs.shape)
-    assert not np.isinf(pretraining_sdfs).any(), 'Contains infinity'
+#     assert not np.isinf(pretraining_sdfs).any(), 'Contains infinity'
     
     sdf = SDFNCT(config)
     gt = torch.from_numpy(pretraining_sdfs).cuda()
@@ -357,34 +368,33 @@ def train(config, sdf, gt_sinogram, lr=1e-4, init = np.array([0.25,0.82])):
 #     optimizer2 = optim.Adam(list(intensities.parameters()), lr = 1e-4)
     scheduler = StepLR(optimizer, step_size=1, gamma=0.95)
     
-    for itr in range(1000):
+    for itr in range(2000):
         optimizer.zero_grad()
 #         optimizer2.zero_grad()
         t = np.random.randint(0,config.TOTAL_CLICKS,config.BATCH_SIZE)
         theta = t*(config.THETA_MAX/config.TOTAL_CLICKS)
         pred = renderer(theta)
+                
         target = gt_sinogram[:,t]
         loss1 = torch.abs(pred - target).mean()*100
         
         eikonal, total_variation_space, total_variation_time = sdf.grad(theta[0])
         assert target.shape == pred.shape, 'target has shape : {} while prediction has shape :{}'.format(target.shape, pred.shape)
         
-        loss = loss1 + 0.1*eikonal + 0.01*total_variation_space + 0.01*total_variation_time
-        
+        loss = loss1 + 0.1*eikonal + 0.01*total_variation_space + 0.5*total_variation_time
         loss.backward()
         optimizer.step()
 #         optimizer2.step()
         
         if itr %200 == 0:
             print('itr: {}, loss: {:.4f}, lossP: {:.4f}, lossE: {:.4f}, lossTVs: {:.4f}, lossTVt: {:.4f}, lr: {:.4f}'.format(itr, loss.item(), loss1.item(), eikonal.item(), 
-                                     total_variation_space.item(), total_variation_time.item(),scheduler.get_last_lr()[0]*10**4))
+                                     total_variation_space.item(), total_variation_time.item(), scheduler.get_last_lr()[0]*10**4))
             scheduler.step()
             
         if loss1.item() < 0.08:
             break
             
     return sdf, intensities
-#         break
     
 def fetch_movie(config, sdf):
     frames = np.zeros((config.IMAGE_RESOLUTION,config.IMAGE_RESOLUTION,config.TOTAL_CLICKS,config.NUM_SDFS))
@@ -397,3 +407,14 @@ def fetch_movie(config, sdf):
     movie = np.sum(frames*intensities, axis=3)
     
     return movie       
+
+def save_movie(movie, file_name):
+    assert isinstance(movie, np.ndarray) and len(movie.shape) == 3, 'movie must be a 3D numpy array'
+    
+    os.system('rm -r {}/ && mkdir {}'.format(file_name))
+    for i in range(movie.shape[2]):
+        plt.imsave('{}/{}.png'.format(file_name,i), movie[...,i], cmap='gray')
+    if os.path.exists('{}.zip'.format(file_name)):
+        os.system('rm {}.zip'.format(file_name))
+    
+    os.system('zip -r {}.zip {}/'.format(file_name,file_name))

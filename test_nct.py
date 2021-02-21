@@ -14,14 +14,14 @@ class TestNCT(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         ''
-#         if os.path.exists('test_outputs'):
-#             os.system('cd test_outputs && rm *')
+        if os.path.exists('test_outputs') and len(os.listdir('test_outputs')) !=0:
+            os.system('cd test_outputs && rm *')
             
-#         else:
-#             os.system('mkdir test_outputs')
+        else:
+            os.system('mkdir test_outputs')
             
     def setUp(self):
-        self.config = Config(np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
+        self.config = Config(np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0)
         self.body = Body(self.config, [Organ(self.config,[0.6,0.6],0.1,0.1,'simple_sin','const2'),
                                        Organ(self.config,[0.3,0.3],0.1,0.1,'simple_sin','const2')])
         
@@ -31,19 +31,22 @@ class TestNCT(unittest.TestCase):
         
         # Test for Intensity
         for intensity in [0.2,[0.2],[[0.2]],[[0.3,0.7]],np.array(0.3),np.array([0.3]), np.array([[[0.3]]]),'High']:
-            self.assertRaises(AssertionError,Config,intensity, TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
+            self.assertRaises(AssertionError,Config,intensity, TYPE=0, NUM_HEART_BEATS=2.0)
         
         # Test for TYPE
         for type in [-1, 5, 1.0, 'a', [0], [0,1]]:
-            self.assertRaises(AssertionError,Config, np.array([[0.3,0.6]]), TYPE=type, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
+            self.assertRaises(AssertionError,Config, np.array([[0.3,0.6]]), TYPE=type, NUM_HEART_BEATS=2.0)
        
         # Test for NUM_HEART_BEATS
         for num in [-1,2,[2,4],[2,4.0],10.0]:
-            self.assertRaises(AssertionError,Config,np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=num, NUM_SDFS=2)
+            self.assertRaises(AssertionError,Config,np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=num)
         
         # Test for NUM_SDFS
-        for num in [-1,0,'one',[0,3],0.6,2.0]:
-            self.assertRaises(AssertionError,Config,np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=num)
+        self.assertEqual(self.config.INTENSITIES.shape[1], 2)
+        self.assertEqual(self.config.NUM_SDFS, 2)
+        
+#         for num in [-1,0,'one',[0,3],0.6,2.0]:
+#             self.assertRaises(AssertionError,Config,np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=num)
         
     def test_motion_init(self):
         
@@ -144,7 +147,7 @@ class TestNCT(unittest.TestCase):
     def test_organ_get_phase(self):
         
         # Testing for Type 0
-        config = Config(np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
+        config = Config(np.array([[0.3,0.6]]), TYPE=0, NUM_HEART_BEATS=2.0)
         organ = Organ(config, [0.0,0.0],1.0,1.0,'const','const2')
         
         self.assertAlmostEqual(get_phase(config,0.0),0,ALMOST_EQUAL_TOL)
@@ -154,7 +157,7 @@ class TestNCT(unittest.TestCase):
                          config.GANTRY_ROTATION_PERIOD/config.HEART_BEAT_PERIOD,ALMOST_EQUAL_TOL)
         
         # Testing for Type 1
-        config = Config(np.array([[0.3,0.6]]), TYPE=1, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
+        config = Config(np.array([[0.3,0.6]]), TYPE=1, NUM_HEART_BEATS=2.0)
         organ = Organ(config, [0.0,0.0],1.0,1.0,'const','const2')
         self.assertAlmostEqual(get_phase(config,0.0),0,ALMOST_EQUAL_TOL)
         self.assertAlmostEqual(get_phase(config,1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
@@ -162,7 +165,7 @@ class TestNCT(unittest.TestCase):
         
         # Testing for Type 2
         for num in [1.0,2.0,3.0]:
-            config = Config(np.array([[0.3,0.6]]), TYPE=2, NUM_HEART_BEATS=num, NUM_SDFS=2)
+            config = Config(np.array([[0.3,0.6]]), TYPE=2, NUM_HEART_BEATS=num)
             organ = Organ(config, [0.0,0.0],1.0,1.0,'const','const2')
             self.assertAlmostEqual(get_phase(config,0.0),0,ALMOST_EQUAL_TOL)
             self.assertAlmostEqual(get_phase(config,1.0*config.THETA_MAX),0,ALMOST_EQUAL_TOL)
@@ -170,7 +173,7 @@ class TestNCT(unittest.TestCase):
         
     def test_organ_is_inside(self):
         
-        config = Config(np.array([[0.3,0.6]]), TYPE=1, NUM_HEART_BEATS=1.0, NUM_SDFS=2)
+        config = Config(np.array([[0.3,0.6]]), TYPE=1, NUM_HEART_BEATS=1.0)
         organ = Organ(config,[0.0,0.0],0.5,0.5,'simple_sin','const2')
         
         # Test for inputs
@@ -229,7 +232,7 @@ class TestNCT(unittest.TestCase):
         for input in ['a',0.2,[1.0,2.0],np.array([[1,2]]),None]:
             self.assertRaises(AssertionError,SDFGt, self.config, input)
            
-        config = Config(np.array([[0.3]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=2)
+        config = Config(np.array([[0.3]]), TYPE=0, NUM_HEART_BEATS=2.0)
         
         body = Body(config, [Organ(config,[0.5,0.5],0.2,0.2,'simple_sin','const2')])
         self.assertRaises(AssertionError,SDFGt, self.config, body)
@@ -247,7 +250,7 @@ class TestNCT(unittest.TestCase):
             np.save('test_outputs/sdfgt_forward',image)
         
         # Test for single organ
-        config = Config(np.array([[0.3]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=1)
+        config = Config(np.array([[0.3]]), TYPE=0, NUM_HEART_BEATS=2.0)
         body = Body(config, [Organ(config,[0.6,0.6],0.2,0.2,'simple_sin','const2')])
         sdf = SDFGt(config, body)
         sdf.forward(0.0)
@@ -279,31 +282,57 @@ class TestNCT(unittest.TestCase):
         
         # sdf and sdf_back should be the same
         self.assertAlmostEqual(np.linalg.norm(sdf_back-sdf),0,ALMOST_EQUAL_TOL)
+        
+        
+    def test_intensities(self):
+        
+        # Test for config
+        for input in ['a',0.2,[1.0,2.0],np.array([[1,2]]),None]:
+            self.assertRaises(AssertionError,Intensities,input)
+            
+        # Test for learnable
+        for input in ['a',0.2,[1.0,2.0],np.array([[1,2]]),None]:
+            self.assertRaises(AssertionError,Intensities,self.config,input)
+            
+        # Test for init
+        for input in [0.2,[0.2],[[0.2]],[[0.3,0.7]],np.array(0.3), np.array([[[0.3]]]),'High', np.array([[0.2]]),np.array([[0.2,0.4,0.8]])]:
+            self.assertRaises(AssertionError,Intensities,self.config, False,input)
+            
+        # Test for bandwidth
+        for input in [[0.2],[[0.2]],[[0.3,0.7]],np.array(0.3),np.array([0.3]), np.array([[[0.3]]]),'High', -1, -0.1, 2]:
+            self.assertRaises(AssertionError,Intensities,self.config, False, np.array([0.3,0.5]), input)
             
     def test_renderer_init(self):
         
         sdf = SDF()
+        intensities = Intensities(self.config, learnable = False, init = np.array([0.3,0.5]), bandwidth = 0.05)
+        
         for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
-            self.assertRaises(AssertionError, Renderer, input, sdf)
+            self.assertRaises(AssertionError, Renderer, input, sdf,intensities)
             
         for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
-            self.assertRaises(AssertionError, Renderer, self.config, input)
+            self.assertRaises(AssertionError, Renderer, self.config, input,intensities)
+            
+        for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
+            self.assertRaises(AssertionError, Renderer, self.config, sdf, input)
             
     def test_renderer(self):
         
-        config = Config(np.array([[0.3]]), TYPE=0, NUM_HEART_BEATS=2.0, NUM_SDFS=1)
+        config = Config(np.array([[0.3]]), TYPE=0, NUM_HEART_BEATS=2.0)
         body = Body(config, [Organ(self.config,[0.6,0.6],0.2,0.2,'const','const2')])
+        intensities = Intensities(config, learnable = False, init = np.array([0.3]), bandwidth = 0.05)
         
         # Test Snapshot
         sdf = SDFGt(config, body)
-        renderer = Renderer(config, sdf)
+        renderer = Renderer(config, sdf,intensities)
+        
         for input in [-99999, 0, None, np.nan, 'a', 'abc', [0], np.array([0])]:
             self.assertRaises(AssertionError, renderer.snapshot, input)
             
         for t in [0.0,0.3*config.THETA_MAX, 1.0*self.config.THETA_MAX]:
             renderer.snapshot(t)
 
-        # Test forward inputs
+#         # Test forward inputs
         for input in [-99999, 0.0, None, np.nan, 'a', 'abc', [0], np.array([[0]])]:
             self.assertRaises(AssertionError, renderer.forward, input)
         
@@ -317,7 +346,8 @@ class TestNCT(unittest.TestCase):
         
         # Test by visualizing results of forward and rigid fbp
         sdf = SDFGt(self.config, self.body)
-        renderer = Renderer(self.config, sdf)
+        intensities = Intensities(config, learnable = False, init = self.config.INTENSITIES[:,0], bandwidth = 0.05)
+        renderer = Renderer(self.config, sdf, intensities)
         all_thetas = np.linspace(0,config.THETA_MAX, config.TOTAL_CLICKS)
         sinogram = renderer.forward(all_thetas).detach().cpu().numpy()
         fbp = renderer.compute_rigid_fbp(sinogram,all_thetas)
@@ -335,10 +365,7 @@ class TestNCT(unittest.TestCase):
         
         self.assertAlmostEqual(np.linalg.norm(C)/(C.shape[0]*C.shape[1]), 0, ALMOST_EQUAL_TOL)
         
-        
-        
-        
-        
+
         
 if __name__ == '__main__':
     unittest.main()

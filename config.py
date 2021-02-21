@@ -1,7 +1,7 @@
 import numpy as np
 
 class Config(object): 
-    def __init__(self, INTENSITIES, TYPE=0, NUM_HEART_BEATS=2, NUM_SDFS=2):
+    def __init__(self, INTENSITIES, TYPE=0, NUM_HEART_BEATS=2):
         '''
         Define the Environment parameters of CT setup
         '''
@@ -11,8 +11,8 @@ class Config(object):
         assert isinstance(INTENSITIES, np.ndarray), 'INTENSITIES must be a Nx1 numpy array'
         assert len(INTENSITIES.shape) == 2, 'INTENSITIES must be a Nx1 numpy array'
         assert isinstance(TYPE, int) and TYPE in [0,1,2], 'TYPE must be either 0, 1 or 2'
-        assert isinstance(NUM_HEART_BEATS, float) and NUM_HEART_BEATS >= 1 and NUM_HEART_BEATS < 10, 'NUM_HEART_BEATS must be a float between 1 and 10'
-        assert isinstance(NUM_SDFS, int) and NUM_SDFS > 0 and NUM_SDFS < 5, 'NUM_SDFs should be positive integer not more than 5' 
+        assert isinstance(NUM_HEART_BEATS, float) and NUM_HEART_BEATS >= 0 and NUM_HEART_BEATS < 10, 'NUM_HEART_BEATS must be a float between 1 and 10'
+#         assert isinstance(NUM_SDFS, int) and NUM_SDFS > 0 and NUM_SDFS < 5, 'NUM_SDFs should be positive integer not more than 5' 
         
         
         self.IMAGE_RESOLUTION = 128              # Resolution of the CT image
@@ -51,5 +51,5 @@ class Config(object):
         NeuralCT Hyper parameters
         '''
         self.SDF_SCALING = self.IMAGE_RESOLUTION/1.414  # Factor to scale NeuralCT's output to match G.T. SDF range of values
-        self.BATCH_SIZE=20                       # Number of projections used in a single training iterations
-        self.NUM_SDFS = NUM_SDFS
+        self.BATCH_SIZE=36                       # Number of projections used in a single training iterations
+        self.NUM_SDFS = self.INTENSITIES.shape[1]
