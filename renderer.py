@@ -4,6 +4,8 @@ import torch.nn as nn
 import kornia
 from skimage.transform import iradon
 from scipy import ndimage
+from scipy.ndimage import rotate
+
 
 
 from config import Config
@@ -96,7 +98,7 @@ class Intensities(nn.Module):
         return self.default + residual
     
 class Renderer(nn.Module):
-    def __init__(self, config, sdf, intensities):
+    def __init__(self, config, sdf, intensities, offset=0.0):
         super(Renderer, self).__init__()
         
         assert isinstance(config, Config), 'config must be an instance of class Config'
@@ -106,7 +108,7 @@ class Renderer(nn.Module):
         self.config = config
         self.sdf = sdf
         self.intensities = intensities
-            
+        self.offset = offset    
     def snapshot(self,t):
         '''
         Rotates the canvas at a particular angle and calculates the intensity
@@ -114,7 +116,7 @@ class Renderer(nn.Module):
         assert isinstance(t, float), 't = {} must be a float here'.format(t)
         assert t >= -self.config.THETA_MAX and t <= self.config.THETA_MAX, 't = {} is out of range'.format(t)
         
-        rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t]) , torch.ones(1)).cuda()
+        rotM = kornia.get_rotation_matrix2d(torch.Tensor([[self.config.IMAGE_RESOLUTION/2,self.config.IMAGE_RESOLUTION/2]]), torch.Tensor([t+self.offset]) , torch.ones(1)).cuda()
         
         canvas = sdf_to_occ(self.sdf(t))
         

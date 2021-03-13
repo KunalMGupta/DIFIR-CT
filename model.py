@@ -51,26 +51,28 @@ def fetch_fbp_movie(config, body):
     
     return sinogram, 131*reconstruction_fbp
 
-def fetch_fbp_movie_exp1(config, body, gantry_offset=0.0, band = 180):
-    
-    # band is in unit degrees
-    band *= (config.GANTRY_VIEWS_PER_ROTATION/360)
-    band = int(band)
+def fetch_fbp_movie_exp1(config, body, gantry_offset=0.0):
     intensities = Intensities(config, learnable = False)
-    
     sdf = SDFGt(config, body)
+    incr = 180
     with torch.no_grad():
         from skimage.transform import iradon
-        all_thetas = np.linspace(-gantry_offset, config.THETA_MAX-gantry_offset, config.TOTAL_CLICKS)
-        gtrenderer = Renderer(config,sdf,intensities)
-        sinogt = gtrenderer(all_thetas).detach().cpu().numpy()
         
-    sinogram = sinogt.reshape(config.IMAGE_RESOLUTION, config.TOTAL_CLICKS)
-    reconstruction_fbp = np.zeros((config.IMAGE_RESOLUTION,config.IMAGE_RESOLUTION,config.TOTAL_CLICKS - band))
+        all_thetas = np.linspace(-config.THETA_MAX/2-incr/2, config.THETA_MAX/2+incr/2, config.TOTAL_CLICKS + incr*int(config.GANTRY_VIEWS_PER_ROTATION/360))
+#         all_thetas = np.linspace(-config.THETA_MAX/2-incr, config.THETA_MAX/2+incr, config.TOTAL_CLICKS + 2*incr*int(config.GANTRY_VIEWS_PER_ROTATION/360))
+
+
+        gtrenderer = Renderer(config,sdf,intensities,offset=gantry_offset)
+        sinogt = gtrenderer(all_thetas).detach().cpu().numpy()
+
+    sinogram = sinogt.reshape(config.IMAGE_RESOLUTION, config.TOTAL_CLICKS + incr*int(config.GANTRY_VIEWS_PER_ROTATION/360))
+    reconstruction_fbp = np.zeros((config.IMAGE_RESOLUTION,config.IMAGE_RESOLUTION,config.TOTAL_CLICKS+ 0*incr*int(config.GANTRY_VIEWS_PER_ROTATION/360)))
     count=0
     
-    for i in tqdm(range(0, config.TOTAL_CLICKS - band)):
-        reconstruction_fbp[...,count] = iradon(sinogram[...,i:i+band], theta = all_thetas[i:i+band],circle=True).T
+    for i in tqdm(range(0, config.TOTAL_CLICKS + 0*incr*int(config.GANTRY_VIEWS_PER_ROTATION/360))):
+        reconstruction_fbp[...,count] = rotate(iradon(sinogram[...,i:i+incr*int(config.GANTRY_VIEWS_PER_ROTATION/360)], 
+                                               theta = all_thetas[i:i+incr*int(config.GANTRY_VIEWS_PER_ROTATION/360)],circle=True).T, 
+                                               -gantry_offset, reshape=False)
         count+=1
     
     return sinogram, 132*reconstruction_fbp
@@ -353,17 +355,18 @@ def pretrain_sdf(config, pretraining_sdfs, init, lr = 1e-4):
             
     return sdf, init
 
-def get_sinogram(config, sdf, intensities):
-    renderer = Renderer(config, sdf,intensities)
-    all_thetas = np.linspace(0,config.THETA_MAX, config.TOTAL_CLICKS)
+def get_sinogram(config, sdf, intensities, all_thetas = None, offset = 0.0):
+    renderer = Renderer(config, sdf,intensities,offset=offset)
+    if all_thetas is None:
+        all_thetas = np.linspace(0,config.THETA_MAX, config.TOTAL_CLICKS)
     sinogram = renderer.forward(all_thetas).detach().cpu().numpy()
     
     return sinogram
 
-def train(config, sdf, gt_sinogram, lr=1e-4, init = np.array([0.25,0.82])):
+def train(config, sdf, gt_sinogram, lr=1e-4, init = np.array([0.25,0.82]), gantry_offset = 0.0):
         
     intensities = Intensities(config, learnable = False, init = init)
-    renderer = Renderer(config, sdf,intensities)
+    renderer = Renderer(config, sdf,intensities, offset = 90+gantry_offset)
     optimizer = optim.Adam(list(sdf.parameters()), lr = lr)
 #     optimizer2 = optim.Adam(list(intensities.parameters()), lr = 1e-4)
     scheduler = StepLR(optimizer, step_size=1, gamma=0.95)
@@ -381,7 +384,8 @@ def train(config, sdf, gt_sinogram, lr=1e-4, init = np.array([0.25,0.82])):
         eikonal, total_variation_space, total_variation_time = sdf.grad(theta[0])
         assert target.shape == pred.shape, 'target has shape : {} while prediction has shape :{}'.format(target.shape, pred.shape)
         
-        loss = loss1 + 0.1*eikonal + 0.01*total_variation_space + 0.5*total_variation_time
+        loss = loss1 + 0.1*eikonal + 0.2*total_variation_space + 0.5*total_variation_time
+
         loss.backward()
         optimizer.step()
 #         optimizer2.step()
@@ -396,10 +400,11 @@ def train(config, sdf, gt_sinogram, lr=1e-4, init = np.array([0.25,0.82])):
             
     return sdf, intensities
     
-def fetch_movie(config, sdf):
+def fetch_movie(config, sdf, all_thetas=None):
     frames = np.zeros((config.IMAGE_RESOLUTION,config.IMAGE_RESOLUTION,config.TOTAL_CLICKS,config.NUM_SDFS))
     for i in range(config.NUM_SDFS):
-        all_thetas = np.linspace(0., config.THETA_MAX, config.TOTAL_CLICKS)
+        if all_thetas is None:
+            all_thetas = np.linspace(0., config.THETA_MAX, config.TOTAL_CLICKS)
         for j in range(config.TOTAL_CLICKS):
             frames[...,j,i] = sdf_to_occ(sdf(all_thetas[j]))[...,i].detach().cpu().numpy()
             
