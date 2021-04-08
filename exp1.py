@@ -21,6 +21,12 @@ from tqdm import tqdm
 import argparse
 from scipy.ndimage import rotate
 
+num = 1
+torch.manual_seed(num)
+import random
+random.seed(num)
+import numpy as np
+np.random.seed(num)
 
 from scipy.ndimage import binary_erosion
 
@@ -43,16 +49,6 @@ body = Body(config, [Organ(config,[0.5,0.5],RADIUS,RADIUS,'const','circle')])
 sinogram, reconstruction_fbp = fetch_fbp_movie_exp1(config, body, gantry_offset=opt.offset)
 all_thetas = np.linspace(-config.THETA_MAX/2, config.THETA_MAX/2, config.TOTAL_CLICKS)
 np.save(filename+'_fbp',reconstruction_fbp)
-
-# pretraining_sdfs, init = get_pretraining_sdfs(config, sdf=reconstruction_fbp)
-# print(init)
-# config.TOTAL_CLICKS -= int(BAND*(config.GANTRY_VIEWS_PER_ROTATION/360))
-# sdf, init = pretrain_sdf(config, pretraining_sdfs, init, lr = 1e-4)
-# gt_sinogram = torch.from_numpy(get_sinogram(config, SDFGt(config, body),Intensities(config, learnable = False))).cuda()
-# sdf,intensities = train(config, sdf, gt_sinogram, init=init[:,0])
-# pretraining_sdfs, _ = get_pretraining_sdfs(config, sdf=sdf)
-# sdf, _ = pretrain_sdf(config, pretraining_sdfs, intensities, lr = 5e-5)
-# sdf,intensities = train(config, sdf, gt_sinogram, init=init[:,0], lr=1e-5)
 
 pretraining_sdfs, init = get_pretraining_sdfs(config, sdf=reconstruction_fbp)
 # # print(init)

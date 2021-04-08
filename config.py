@@ -51,5 +51,5 @@ class Config(object):
         NeuralCT Hyper parameters
         '''
         self.SDF_SCALING = self.IMAGE_RESOLUTION/1.414  # Factor to scale NeuralCT's output to match G.T. SDF range of values
-        self.BATCH_SIZE=36                       # Number of projections used in a single training iterations
+        self.BATCH_SIZE=25                       # Number of projections used in a single training iterations
         self.NUM_SDFS = self.INTENSITIES.shape[1]

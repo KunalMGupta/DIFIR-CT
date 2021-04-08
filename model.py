@@ -253,7 +253,7 @@ class FourierFeatures(nn.Module):
 # print(torch.norm(val_t - 1.5*torch.ones(x.shape).type_as(x)))
 
 class SDFNCT(SDF):
-    def __init__(self, config):
+    def __init__(self, config, scale=1.5):
         super(SDFNCT, self).__init__()
         
         assert isinstance(config, Config), 'config must be an instance of class Config'
@@ -263,7 +263,7 @@ class SDFNCT(SDF):
         self.pts = torch.autograd.Variable(2*(torch.from_numpy(np.hstack((x.reshape(-1,1),y.reshape(-1,1)))).cuda().float()-0.5),requires_grad=True)
         
         self.encoder = Siren(2,256,3,config.NUM_SDFS).cuda()
-        self.velocity = FourierFeatures(2,config.NUM_SDFS).cuda()
+        self.velocity = FourierFeatures(2, config.NUM_SDFS, scale=scale).cuda()
         
     def compute_sdf_t(self, t):
         assert isinstance(t, torch.Tensor) or isinstance(t, float), 't = {} must be a float or a tensor here'.format(t)
@@ -322,12 +322,12 @@ class SDFNCT(SDF):
         return eikonal, total_variation_space, total_variation_time
     
     
-def pretrain_sdf(config, pretraining_sdfs, init, lr = 1e-4):
+def pretrain_sdf(config, pretraining_sdfs, init, lr = 1e-4, scale = 1.5):
         
     assert len(pretraining_sdfs.shape) == 4, 'Invalid shape : {}'.format(pretraining_sdfs.shape)
 #     assert not np.isinf(pretraining_sdfs).any(), 'Contains infinity'
     
-    sdf = SDFNCT(config)
+    sdf = SDFNCT(config, scale = scale)
     gt = torch.from_numpy(pretraining_sdfs).cuda()
     
     optimizer = optim.Adam(list(sdf.parameters()), lr = lr)
@@ -363,17 +363,15 @@ def get_sinogram(config, sdf, intensities, all_thetas = None, offset = 0.0):
     
     return sinogram
 
-def train(config, sdf, gt_sinogram, lr=1e-4, init = np.array([0.25,0.82]), gantry_offset = 0.0):
+def train(config, sdf, gt_sinogram, lr=1e-4, init = np.array([0.25,0.82]), gantry_offset = 0.0, coefftvs = 0.5, coefftvt=0.5):
         
     intensities = Intensities(config, learnable = False, init = init)
     renderer = Renderer(config, sdf,intensities, offset = 90+gantry_offset)
     optimizer = optim.Adam(list(sdf.parameters()), lr = lr)
-#     optimizer2 = optim.Adam(list(intensities.parameters()), lr = 1e-4)
     scheduler = StepLR(optimizer, step_size=1, gamma=0.95)
     
-    for itr in range(2000):
+    for itr in range(5000):
         optimizer.zero_grad()
-#         optimizer2.zero_grad()
         t = np.random.randint(0,config.TOTAL_CLICKS,config.BATCH_SIZE)
         theta = t*(config.THETA_MAX/config.TOTAL_CLICKS)
         pred = renderer(theta)
@@ -384,11 +382,10 @@ def train(config, sdf, gt_sinogram, lr=1e-4, init = np.array([0.25,0.82]), gantr
         eikonal, total_variation_space, total_variation_time = sdf.grad(theta[0])
         assert target.shape == pred.shape, 'target has shape : {} while prediction has shape :{}'.format(target.shape, pred.shape)
         
-        loss = loss1 + 0.1*eikonal + 0.2*total_variation_space + 0.5*total_variation_time
+        loss = loss1 + 0.1*eikonal + coefftvs*total_variation_space + coefftvt*total_variation_time
 
         loss.backward()
         optimizer.step()
-#         optimizer2.step()
         
         if itr %200 == 0:
             print('itr: {}, loss: {:.4f}, lossP: {:.4f}, lossE: {:.4f}, lossTVs: {:.4f}, lossTVt: {:.4f}, lr: {:.4f}'.format(itr, loss.item(), loss1.item(), eikonal.item(), 
